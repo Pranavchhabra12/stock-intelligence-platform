@@ -72,6 +72,13 @@ Rules: one concern per migration; never edit a migration that has been applied a
 | 0004 security | RLS on all tables; revoke access from Supabase API roles |
 | 0005 market | daily_prices, corporate_actions |
 | 0006 financials | metric_definitions (with the 12 definitions), financial_periods, financial_metrics, derived-metric guard |
+| 0007 function_search_path | pins `search_path` on the trigger functions (Supabase security advisor) |
+
+## Hosted database (Supabase)
+
+- Postgres 17, migrations at 0007, the five seed companies loaded.
+- The `app` schema is not usable by the `anon` or `authenticated` roles, and RLS is on for every table.
+- Supabase's security advisor reports one remaining **info** item, "RLS enabled, no policy", on each table. That is intentional: no policies means the API roles can read nothing, while the backend's privileged connection is unaffected.
 
 ## Seed data
 
