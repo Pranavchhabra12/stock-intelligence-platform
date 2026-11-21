@@ -11,7 +11,7 @@
 - [x] Per-client rate limit, CORS
 - [x] Tests: migration round trip, seed idempotency, constraints, search and lookup (34 tests)
 - [x] GitHub Actions CI (lint + tests on Postgres 17)
-- [ ] Create Supabase project (Mumbai region) and run migrations + seed against it
+- [x] Create Supabase project and run migrations + seed against it
 - [ ] Verify seed identifiers against NSE/BSE pages; set `"verified": true`
 
 **Phase 1 acceptance criteria (blueprint):** tables created ✅ · company records insert and retrieve ✅ · NSE/BSE listings linked to one company ✅ · search returns the right company ✅ · no duplicate companies ✅
@@ -27,7 +27,8 @@
 - [x] `GET /stocks/{ticker}/prices`, `GET /stocks/{ticker}/financials`
 - [x] CLI: `python -m backend.collect RELIANCE` / `--all`
 - [x] Offline tests for adapters, fallback, collector and API; live-data workflow
-- [ ] Run against Supabase once the project exists
+- [x] Database ready on Supabase (migrations 0001–0007, seed loaded, security advisor clean)
+- [ ] Add the `DATABASE_URL` repository secret and run the **Collect market data** workflow
 
 **Phase 2 acceptance criteria (blueprint):** retrieve market data for a searched company ✅ · historical prices stored ✅ · duplicate price records prevented ✅ · source and timestamps retained ✅ · missing information handled safely ✅
 
