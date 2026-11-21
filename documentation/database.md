@@ -41,6 +41,8 @@ Supabase PostgreSQL. Application tables live in the `app` schema; analytics view
 
 **Fiscal periods:** FY2027 runs April 2026 to March 2027; Q1 = Apr–Jun … Q4 = Jan–Mar.
 
+**Known data difference:** before July 2023, Reliance's stored closes differ by a constant ~3.3% between Yahoo (NSE listing) and Upstox (BSE listing), because only one provider adjusted for the Jio Financial demerger. After that date they agree. Each listing's history comes from a single provider, so each series is internally consistent.
+
 **Price adjustments:** Yahoo's prices are split-adjusted, so after a new split it rescales every earlier price. When the collector sees a new split or bonus, it re-fetches the listing's whole history so the stored series stays consistent.
 
 ## Planned tables

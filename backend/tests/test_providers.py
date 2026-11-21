@@ -168,7 +168,7 @@ def test_upstox_builds_isin_key_and_parses_candles() -> None:
 
     history = upstox_with(handler).get_price_history(NSE, date(2026, 11, 19), date(2026, 11, 20))
     assert seen == ["/v3/historical-candle/NSE_EQ%7CINE002A01018/days/1/2026-11-20/2026-11-19"]
-    assert history.source_code == "upstox" and history.price_basis == "unknown"
+    assert history.source_code == "upstox" and history.price_basis == "split_adjusted"
     assert [b.trade_date for b in history.bars] == [date(2026, 11, 20)]
 
 
