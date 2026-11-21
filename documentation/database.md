@@ -29,11 +29,24 @@ Supabase PostgreSQL. Application tables live in the `app` schema; analytics view
 - Listings never move between companies silently; the seed loader raises an error instead.
 - Every write is an upsert on a natural key.
 
+## Phase 2 tables
+
+| Table | Purpose | Key constraints |
+|---|---|---|
+| `daily_prices` | One row per listing per trading day | PK (listing_id, trade_date); prices > 0; low ≤ open, close ≤ high; `price_basis` (raw, split_adjusted, unknown); `source_id` = the provider that actually supplied the row |
+| `corporate_actions` | Dividends and splits (Yahoo reports bonuses as splits) | unique (listing_id, ex_date, action_type); dividends need an amount, splits a ratio |
+| `metric_definitions` | Every metric: label, unit, whether derived | Five reported metrics; seven derived ones are defined but never stored |
+| `financial_periods` | One reporting period per company | unique (company, period type, period end, consolidation, source, revision); Indian fiscal year and quarter |
+| `financial_metrics` | Reported values | PK (period_id, metric_code); a trigger rejects derived metrics |
+
+**Fiscal periods:** FY2027 runs April 2026 to March 2027; Q1 = Apr–Jun … Q4 = Jan–Mar.
+
+**Price adjustments:** Yahoo's prices are split-adjusted, so after a new split it rescales every earlier price. When the collector sees a new split or bonus, it re-fetches the listing's whole history so the stored series stays consistent.
+
 ## Planned tables
 
 | Phase | Tables |
 |---|---|
-| 2 | `daily_prices` (raw OHLCV, key listing_id + trade_date), `corporate_actions`, `trading_holidays`, `metric_definitions`, `financial_periods` (with consolidated/standalone), `financial_metrics` |
 | 3 | `news_articles` (unique url_hash), `article_companies`, `company_documents`, `document_chunks` |
 | 4 | `ai_analyses` (one per source × company × prompt version × model), `sentiment_history` (one per company × date × methodology version) |
 | 5 | `collection_jobs` (doubles as the job queue) |
@@ -57,6 +70,8 @@ Rules: one concern per migration; never edit a migration that has been applied a
 | 0002 data_sources | provider registry |
 | 0003 master_data | companies, listings, aliases, provider ids |
 | 0004 security | RLS on all tables; revoke access from Supabase API roles |
+| 0005 market | daily_prices, corporate_actions |
+| 0006 financials | metric_definitions (with the 12 definitions), financial_periods, financial_metrics, derived-metric guard |
 
 ## Seed data
 

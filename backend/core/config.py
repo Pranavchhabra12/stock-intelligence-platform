@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     api_rate_limit_per_minute: int = Field(default=60, ge=0)
     admin_api_token: SecretStr | None = None
 
+    # Phase 2: market data. Providers are tried in this order for prices.
+    market_data_providers: str = "yfinance,upstox,eodhd"
+    eodhd_api_key: SecretStr | None = None
+    price_backfill_years: int = Field(default=5, ge=1, le=20)
+
+    @property
+    def market_data_provider_codes(self) -> list[str]:
+        return [c.strip() for c in self.market_data_providers.split(",") if c.strip()]
+
     @property
     def sqlalchemy_database_url(self) -> str:
         return normalize_database_url(self.database_url.get_secret_value())
