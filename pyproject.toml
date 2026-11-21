@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 addopts = "-ra"
+markers = ["live: calls real external data providers (needs RUN_LIVE_TESTS=1)"]
 
 [tool.ruff]
 line-length = 120

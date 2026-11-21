@@ -82,10 +82,28 @@ Without `exchange`: tries the NSE symbol, then the BSE scrip id or code, then IS
 
 Returns company details, all listings and aliases. `GET /stocks/RELIANCE` and `GET /stocks/500325?exchange=BSE` return the same `company_id`.
 
+### `GET /stocks/{ticker}/prices`
+
+| Parameter | Notes |
+|---|---|
+| `exchange` | Optional; NSE by default, `BSE` for the BSE listing |
+| `start`, `end` | Dates; default the last 365 days; at most 10 years; `start` ≤ `end` |
+
+Returns daily OHLCV oldest first. Each row has a `source` (the provider that supplied it); `sources` lists their names and attribution text; `price_basis` is `split_adjusted`, `raw`, `unknown`, or `mixed` when rows came from providers with different bases.
+
+### `GET /stocks/{ticker}/financials`
+
+| Parameter | Notes |
+|---|---|
+| `period_type` | `quarterly` (default) or `annual` |
+| `limit` | 1–40, default 8 |
+
+Periods newest first, labelled like `Q2 FY2027` or `FY2026`. Every reported metric appears in each period; ones the source did not report are `null`.
+
 ## Rate limiting
 
 `API_RATE_LIMIT_PER_MINUTE` requests per client IP per minute (default 60; `0` disables). In-memory, per process: fine for one small instance.
 
 ## Coming in later phases
 
-`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, `GET /stocks/{ticker}/prices`, `/financials`, `/news`, `/reports`, `/sentiment`, `/analysis`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
+`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, `/news`, `/reports`, `/sentiment`, `/analysis`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
