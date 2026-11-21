@@ -98,6 +98,17 @@
       "license_notes": "Publisher RSS feed. Headline, link and the feed's own short description only."
     },
     {
+      "source_code": "google_news_rss",
+      "source_name": "Google News - search RSS",
+      "source_type": "news",
+      "base_url": "https://news.google.com/rss/search",
+      "terms_url": "https://policies.google.com/terms",
+      "attribution_required": true,
+      "attribution_text": "Via Google News; headline and link to the original publisher.",
+      "redistribution_allowed": false,
+      "license_notes": "Search feed per company. Headline, publisher and link only; no article text."
+    },
+    {
       "source_code": "bse_announcements",
       "source_name": "BSE - Latest corporate announcements RSS",
       "source_type": "exchange_filing",

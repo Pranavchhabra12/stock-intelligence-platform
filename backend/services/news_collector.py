@@ -3,9 +3,12 @@
 Sources:
 - publisher RSS feeds and BSE's official filing feeds (market-wide): every item
   is matched against our companies; items about none of them are dropped;
-- GDELT: one combined search for a batch of companies. GDELT matches the full
-  article text, so many results only mention the company in passing; only
-  results whose headline names the company are kept.
+- Google News search (per company): headlines naming the company, from the
+  last few days (a month on the first run).
+- GDELT (best effort): one combined search for a batch of companies. GDELT
+  often refuses requests from cloud servers, so failures are only warnings.
+Search engines match the whole article, so for both searches only results
+whose headline names the company are kept.
 
 Deduplication:
 - the same URL (after canonicalisation) is stored once;
@@ -19,6 +22,8 @@ company document (fetched and parsed later by the document service).
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -28,8 +33,8 @@ from sqlalchemy import Engine, text
 from backend.providers.market_data.base import ProviderError
 from backend.providers.news.base import NewsItem, canonical_url, headline_hash, url_hash
 from backend.providers.news.gdelt import GdeltNewsAdapter
-from backend.providers.news.rss import DEFAULT_FEEDS, Feed, RssAdapter
-from backend.services.company_matcher import CompanyMatcher, Match  # noqa: F401
+from backend.providers.news.rss import DEFAULT_FEEDS, Feed, RssAdapter, google_news_feed
+from backend.services.company_matcher import CompanyMatcher, Match
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +87,15 @@ class NewsResult:
 class NewsCollector:
     def __init__(
         self, engine: Engine, gdelt: GdeltNewsAdapter | None = None, rss: RssAdapter | None = None,
-        feeds: tuple[Feed, ...] = DEFAULT_FEEDS, now: datetime | None = None,
+        feeds: tuple[Feed, ...] = DEFAULT_FEEDS, now: datetime | None = None, search: bool = True,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.engine = engine
         self.gdelt = gdelt
         self.rss = rss
         self.feeds = feeds
+        self.search = search
+        self.sleep = sleep
         self.now = now or datetime.now(UTC)
 
     # ---------- entry points ----------
@@ -129,6 +137,19 @@ class NewsCollector:
                     if doc_type:
                         self._register_document(item, matches, doc_type, result)
 
+        if self.rss and self.search:
+            for i, c in enumerate(companies):
+                if i:
+                    self.sleep(1.0)   # be gentle: one search a second
+                names = sorted({c["company_name"], *(c["names"] or [])})
+                feed = google_news_feed(names, days=3 if c["has_news"] else 30)
+                try:
+                    items = self.rss.fetch(feed)
+                except ProviderError as exc:
+                    result.errors.append(f"google news {c['company_name']}: {exc}")
+                    continue
+                self._store_headline_matches(items, matcher, wanted, result)
+
         if self.gdelt:
             # One combined search per batch of companies rather than one per company:
             # GDELT throttles hard, and the headline matcher works out which company
@@ -143,16 +164,22 @@ class NewsCollector:
                 except (ProviderError, ValueError) as exc:
                     result.errors.append(f"gdelt ({label}): {exc}")
                     continue
-                for item in items:
-                    result.items_seen += 1
-                    matches = [m for m in matcher.match(item.headline) if m.company_id in wanted]
-                    if not matches:
-                        result.unmatched_dropped += 1   # only mentioned in the body: too weak to keep
-                        continue
-                    self._store(item, matches, result)
+                self._store_headline_matches(items, matcher, wanted, result)
 
         logger.info("news_collection_finished", extra={k: v for k, v in vars(result).items()})
         return result
+
+    def _store_headline_matches(self, items: list[NewsItem], matcher: CompanyMatcher, wanted: set,
+                                result: NewsResult) -> None:
+        """Search results: keep only those whose headline names a company. Search engines match the
+        whole article, so a result that only mentions the company in its body is too weak to keep."""
+        for item in items:
+            result.items_seen += 1
+            matches = [m for m in matcher.match(item.headline) if m.company_id in wanted]
+            if not matches:
+                result.unmatched_dropped += 1
+                continue
+            self._store(item, matches, result)
 
     # ---------- storage ----------
 

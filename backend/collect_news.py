@@ -5,7 +5,7 @@
     python -m backend.collect_news --all --no-gdelt   # feeds only
 
 Exit code 1 only if every source failed or a document could not be processed.
-A single source being down (GDELT is often busy) is reported as a warning.
+A single source being down (GDELT often refuses cloud servers) is reported as a warning.
 """
 
 from __future__ import annotations
@@ -30,7 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("tickers", nargs="*")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--no-gdelt", action="store_true", help="skip the GDELT search")
-    parser.add_argument("--no-feeds", action="store_true", help="skip RSS feeds")
+    parser.add_argument("--no-feeds", action="store_true", help="skip RSS feeds and Google News search")
+    parser.add_argument("--no-search", action="store_true", help="skip the per-company Google News search")
     parser.add_argument("--no-documents", action="store_true", help="don't download new documents")
     args = parser.parse_args(argv)
     if not args.tickers and not args.all:
@@ -51,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
                 company_ids.append(cid)
 
     collector = NewsCollector(engine, gdelt=None if args.no_gdelt else GdeltNewsAdapter(),
-                              rss=None if args.no_feeds else RssAdapter())
+                              rss=None if args.no_feeds else RssAdapter(), search=not args.no_search)
     news = collector.collect(company_ids)
     print(json.dumps({"news": {**vars(news), "status": news.status}}))
     if os.environ.get("GITHUB_ACTIONS") == "true":
