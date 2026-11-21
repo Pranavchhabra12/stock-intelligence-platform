@@ -8,6 +8,7 @@ kept; article bodies are never fetched.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,6 +24,10 @@ from backend.providers.news.base import SNIPPET_MAX, FeedKind, NewsItem, clean_t
 from backend.providers.retry import CallPolicy
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
+# BSE filing titles look like "Maruti Suzuki India Ltd (532500)".
+_BSE_TITLE = re.compile(r"^(?P<company>.+?)\s*\((?P<code>\d{6})\)\s*$")
+# Some BSE feeds put the date in the description: "AS ON DATE : 22-Nov-2026".
+_BSE_AS_ON = re.compile(r"AS ON DATE\s*:\s*(?P<date>\d{1,2}-[A-Za-z]{3}-\d{4})", re.I)
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,8 @@ class Feed:
     url: str
     publisher: str
     kind: FeedKind = "news"
+    #: for exchange feeds whose items carry no subject (e.g. "Annual report")
+    label: str | None = None
 
 
 # Verified feed URLs (see documentation/decisions.md). Order does not matter.
@@ -43,8 +50,9 @@ DEFAULT_FEEDS: tuple[Feed, ...] = (
     Feed("mint_companies_rss", "https://www.livemint.com/rss/companies", "Mint"),
     Feed("bse_announcements", "https://beta.bseindia.com/data/xml/announcements.xml", "BSE", "exchange_filing"),
     Feed("bse_financial_results", "https://www.bseindia.com/Data/XML/FinancialResultsFeed.aspx", "BSE",
-         "exchange_filing"),
-    Feed("bse_annual_reports", "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx", "BSE", "exchange_filing"),
+         "exchange_filing", "Financial results"),
+    Feed("bse_annual_reports", "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx", "BSE", "exchange_filing",
+         "Annual report"),
 )
 
 
@@ -62,6 +70,29 @@ def _parse_date(value: str | None) -> datetime | None:
             continue
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
     return None
+
+
+def _shape_exchange_item(item: NewsItem, feed: Feed) -> NewsItem:
+    """BSE items: title = "Company (code)", description = subject. Build a readable headline,
+    keep the scrip code for exact matching, and read the date from the description if present."""
+    m = _BSE_TITLE.match(item.headline)
+    if not m:
+        return item
+    subject = item.snippet or ""
+    published = item.published_at
+    as_on = _BSE_AS_ON.search(subject)
+    if as_on:
+        try:
+            published = datetime.strptime(as_on["date"], "%d-%b-%Y").replace(tzinfo=UTC)
+        except ValueError:
+            pass
+        subject = ""
+    subject = subject or feed.label or "Exchange filing"
+    return NewsItem(
+        source_code=item.source_code, url=item.url, headline=f"{m['company']}: {subject}"[:1000],
+        snippet=None, publisher=item.publisher, published_at=published, language=item.language,
+        kind=item.kind, exchange_code=m["code"],
+    )
 
 
 def parse_feed(xml: bytes, feed: Feed) -> list[NewsItem]:
@@ -90,6 +121,8 @@ def parse_feed(xml: bytes, feed: Feed) -> list[NewsItem]:
                 published_at=_parse_date(_text(entry.find(f"{_ATOM}updated"))
                                          or _text(entry.find(f"{_ATOM}published"))),
             ))
+    if feed.kind == "exchange_filing":
+        items = [_shape_exchange_item(i, feed) for i in items]
     return items
 
 

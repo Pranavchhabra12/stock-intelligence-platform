@@ -13,10 +13,10 @@ from sqlalchemy import Engine, text
 
 from backend.providers.market_data.base import ProviderError
 from backend.providers.news.base import NewsItem, canonical_url, clean_text, headline_hash
-from backend.providers.news.gdelt import GdeltNewsAdapter, build_query, parse_seendate
+from backend.providers.news.gdelt import GdeltNewsAdapter, build_query, parse_seendate, tidy_title
 from backend.providers.news.rss import Feed, RssAdapter, parse_feed
 from backend.services.company_matcher import CompanyMatcher
-from backend.services.news_collector import NewsCollector
+from backend.services.news_collector import NewsCollector, document_type_for
 
 NO_SLEEP = lambda _s: None  # noqa: E731
 NOW = datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
@@ -62,6 +62,46 @@ def test_parse_rss_and_atom() -> None:
     assert items[0].published_at == datetime(2026, 11, 20, 5, 0, tzinfo=UTC)
     atom = parse_feed(ATOM, FEED)
     assert atom[0].url == "https://ex.com/tcs" and atom[0].published_at.year == 2026
+
+
+# Real shapes seen in BSE's feeds (Nov 2026): title "Company (code)", subject in the description,
+# no pubDate; the annual-report feed has "AS ON DATE" instead of a subject.
+BSE_ANNOUNCEMENTS = b"""<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
+<title>BSE</title><item><title>Maruti Suzuki India Ltd (532500)</title>
+<link>https://www.bseindia.com/xml-data/corpfiling/AttachLive/5a6a.pdf</link>
+<description>Price increase</description></item></channel></rss>"""
+BSE_ANNUAL = b"""\xef\xbb\xbf<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>BSE</title>
+<item><title>Infosys Ltd (500209)</title>
+<link>https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0278.pdf</link>
+<description>AS ON DATE : 22-Nov-2026</description></item></channel></rss>"""
+
+
+def test_bse_items_get_readable_headlines_codes_and_dates() -> None:
+    ann = parse_feed(BSE_ANNOUNCEMENTS, Feed("bse_announcements", "u", "BSE", "exchange_filing"))[0]
+    assert ann.headline == "Maruti Suzuki India Ltd: Price increase"
+    assert ann.exchange_code == "532500" and ann.snippet is None and ann.published_at is None
+
+    annual = parse_feed(BSE_ANNUAL, Feed("bse_annual_reports", "u", "BSE", "exchange_filing", "Annual report"))[0]
+    assert annual.headline == "Infosys Ltd: Annual report"
+    assert annual.exchange_code == "500209"
+    assert annual.published_at == datetime(2026, 11, 22, tzinfo=UTC)
+
+
+def test_document_types_from_filings() -> None:
+    def filing(source: str, headline: str, url: str = "https://bse/x.pdf") -> NewsItem:
+        return NewsItem(source, url, headline, kind="exchange_filing", exchange_code="500209")
+
+    assert document_type_for(filing("bse_annual_reports", "Infosys Ltd: Annual report")) == "annual_report"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Financial Results for Q2")) == \
+        "quarterly_results"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Investor Presentation")) == \
+        "investor_presentation"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Change in Directors")) is None
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Financial Results", "https://bse/page")) is None
+
+
+def test_gdelt_titles_are_tidied() -> None:
+    assert tidy_title("RIL , SAIL among top upgrades ( up 3 % )") == "RIL, SAIL among top upgrades (up 3%)"
 
 
 def test_hostile_xml_is_refused() -> None:
@@ -117,7 +157,7 @@ def test_gdelt_plain_text_error_is_reported() -> None:
 RIL, HDFC, TCS = uuid4(), uuid4(), uuid4()
 MATCHER = CompanyMatcher([
     {"company_id": RIL, "names": ["Reliance Industries"], "other_aliases": ["Reliance"],
-     "abbreviations": ["RIL"], "exclude": ["Reliance Power", "Reliance Infrastructure"]},
+     "abbreviations": ["RIL"], "exclude": ["Reliance Power", "Reliance Infrastructure"], "bse_codes": ["500325"]},
     {"company_id": HDFC, "names": ["HDFC Bank"], "abbreviations": ["HDFC", "HDFCBANK"], "exclude": ["HDFC Life"]},
     {"company_id": TCS, "names": ["Tata Consultancy Services", "Tata Consultancy"], "abbreviations": ["TCS"]},
 ])
@@ -136,6 +176,11 @@ MATCHER = CompanyMatcher([
 def test_matcher(headline: str, snippet: str | None, expected: dict) -> None:
     got = {m.company_id: (m.score, m.mention_type) for m in MATCHER.match(headline, snippet)}
     assert got == expected
+
+
+def test_matcher_uses_exact_bse_code_for_filings() -> None:
+    assert [m.company_id for m in MATCHER.match("Some Name Ltd: Results", None, "500325")] == [RIL]
+    assert MATCHER.match("Reliance Industries Ltd: Results", None, "999999") == []   # not ours: no guessing
 
 
 # ---------------- Collection against the database ----------------
@@ -228,7 +273,8 @@ def test_gdelt_results_without_the_name_get_low_relevance(engine: Engine, clean:
 
 def test_bse_results_filing_registers_a_document(engine: Engine, clean: None) -> None:
     rss = FakeRss({"bse_financial_results": [
-        item("bse_financial_results", "https://bse/att/abc.pdf", "HDFC Bank Ltd - 500180 - Financial Results"),
+        NewsItem("bse_financial_results", "https://bse/att/abc.pdf", "HDFC Bank Ltd: Financial results",
+                 publisher="BSE", kind="exchange_filing", exchange_code="500180"),
     ]})
     result = NewsCollector(engine, rss=rss, feeds=FEEDS, now=NOW).collect()
     assert result.documents_registered == 1
