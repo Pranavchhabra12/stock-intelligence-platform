@@ -1,0 +1,40 @@
+"""Application settings, read from environment variables (and a local .env file)."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from backend.database.urls import normalize_database_url
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    app_env: Literal["local", "dev", "prod", "test"] = "local"
+    log_level: str = "INFO"
+
+    # SecretStr keeps the password out of logs and reprs.
+    database_url: SecretStr
+    db_pool_size: int = Field(default=5, ge=1, le=50)
+
+    # Comma-separated in the environment, e.g. "http://localhost:3000,https://example.vercel.app"
+    cors_allowed_origins: str = "http://localhost:3000"
+    api_rate_limit_per_minute: int = Field(default=60, ge=0)
+    admin_api_token: SecretStr | None = None
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        return normalize_database_url(self.database_url.get_secret_value())
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
