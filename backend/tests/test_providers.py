@@ -18,7 +18,7 @@ from backend.providers.market_data.base import (
     ProviderUnavailableError,
 )
 from backend.providers.market_data.eodhd import EodhdMarketDataAdapter
-from backend.providers.market_data.fallback import FallbackMarketDataProvider
+from backend.providers.market_data.fallback import FallbackMarketDataProvider, weekdays_between
 from backend.providers.market_data.upstox import UpstoxMarketDataAdapter
 from backend.providers.market_data.yahoo import YahooMarketDataAdapter
 from backend.tests.fakes import FakeProvider
@@ -168,7 +168,7 @@ def test_upstox_builds_isin_key_and_parses_candles() -> None:
 
     history = upstox_with(handler).get_price_history(NSE, date(2026, 11, 19), date(2026, 11, 20))
     assert seen == ["/v3/historical-candle/NSE_EQ%7CINE002A01018/days/1/2026-11-20/2026-11-19"]
-    assert history.source_code == "upstox" and history.price_basis == "unknown"
+    assert history.source_code == "upstox" and history.price_basis == "split_adjusted"
     assert [b.trade_date for b in history.bars] == [date(2026, 11, 20)]
 
 
@@ -257,3 +257,30 @@ def test_fallback_skips_providers_without_fundamentals() -> None:
     chain = FallbackMarketDataProvider([FakeProvider("upstox", supports_fundamentals=False), FakeProvider("yfinance")])
     source, _ = chain.first_available("financials", lambda p: p.get_financials(NSE))
     assert source == "yfinance"
+
+
+def test_weekdays_between() -> None:
+    assert weekdays_between(date(2026, 11, 16), date(2026, 11, 22)) == 5   # Mon..Sun
+    assert weekdays_between(date(2026, 11, 21), date(2026, 11, 22)) == 0   # weekend
+    assert weekdays_between(date(2026, 11, 20), date(2026, 11, 16)) == 0   # reversed
+    assert weekdays_between(date(2021, 11, 22), date(2026, 11, 20)) == 1305
+
+
+def test_fallback_skips_thin_answers() -> None:
+    # One day out of five years is not an answer: ask the next provider.
+    chain = FallbackMarketDataProvider([FakeProvider("yfinance", thin_prices=True), FakeProvider("upstox")])
+    history = chain.get_price_history(BSE, date(2021, 11, 22), date(2026, 11, 20))
+    assert history.source_code == "upstox" and len(history.bars) > 1000
+
+
+def test_fallback_uses_fullest_answer_when_none_complete() -> None:
+    chain = FallbackMarketDataProvider([FakeProvider("yfinance", thin_prices=True),
+                                        FakeProvider("upstox", fail_prices=True)])
+    history = chain.get_price_history(BSE, date(2021, 11, 22), date(2026, 11, 20))
+    assert history.source_code == "yfinance" and len(history.bars) == 1
+
+
+def test_short_ranges_accept_any_rows() -> None:
+    # A daily update covers 1-2 days; one row is a complete answer.
+    chain = FallbackMarketDataProvider([FakeProvider("yfinance", thin_prices=True), FakeProvider("upstox")])
+    assert chain.get_price_history(NSE, date(2026, 11, 19), date(2026, 11, 20)).source_code == "yfinance"

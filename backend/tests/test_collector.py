@@ -150,3 +150,26 @@ def test_unregistered_source_fails_clearly(engine: Engine, clean: None) -> None:
     result = collector(engine, FakeProvider("nosuchsource")).collect_company(company_id(engine, "Infosys"))
     assert result.status == "failed"
     assert "not registered" in result.errors[0]
+
+
+def test_thin_primary_data_falls_back_per_listing(engine: Engine, clean: None) -> None:
+    result = collector(engine, FakeProvider("yfinance", thin_prices=True), FakeProvider("upstox", "unknown")) \
+        .collect_company(company_id(engine, "Reliance Industries"))
+    assert result.status == "completed"
+    assert len(price_rows(engine, "BSE")) > 250
+    assert {r.source_code for r in price_rows(engine, "BSE")} == {"upstox"}
+
+
+def test_gap_at_the_front_is_filled_on_the_next_run(engine: Engine, clean: None) -> None:
+    cid = company_id(engine, "Reliance Industries")
+    # First run: only one provider, and it is thin -> a single row per listing.
+    collector(engine, FakeProvider("yfinance", thin_prices=True)).collect_company(cid)
+    assert len(price_rows(engine, "BSE")) == 1
+
+    # Next run with a fallback available: the missing history is filled in.
+    result = collector(engine, FakeProvider("yfinance", thin_prices=True), FakeProvider("upstox", "unknown")) \
+        .collect_company(cid)
+    assert result.status == "completed"
+    rows = price_rows(engine, "BSE")
+    assert len(rows) > 250
+    assert rows[-1].source_code == "yfinance"   # the original row is kept, not overwritten

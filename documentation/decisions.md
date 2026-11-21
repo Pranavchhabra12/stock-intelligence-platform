@@ -22,6 +22,7 @@ Short records of architectural choices and why they were made. The finalised sta
 | 16 | AI analyses keyed by source × company | One article can be good news for one company and bad for another |
 | 17 | Price fallback chain: Yahoo → Upstox → EODHD | Yahoo is unofficial and can fail; Upstox's historical endpoint is public and keyed by ISIN; EODHD's free plan covers the last year. Each row records its provider |
 | 18 | Adapters derive their own symbols from a `ListingKey` | Provider-specific identifiers stay inside adapters; `listing_provider_ids` only holds exceptions |
-| 19 | `price_basis = unknown` for Upstox and EODHD | Their adjustment basis isn't confirmed; the live check compares their closes with Yahoo's |
+| 19 | Upstox marked `split_adjusted`; EODHD stays `unknown` | Five years of Upstox BSE closes match Yahoo NSE closes to ~0.04% across bonus issues. EODHD hasn't been compared yet |
 | 20 | Derived metrics blocked by a database trigger | Market cap, P/E and the like are always computed from stored values, never stored |
 | 21 | Live provider tests run in a separate, non-blocking workflow | External outages shouldn't fail normal CI, but breakages still get noticed daily |
+| 22 | A thin answer counts as missing data | Yahoo returned one day of BSE history for four companies; the fallback now needs ≥80% of weekdays, and the collector fills gaps at the front of a listing's history |

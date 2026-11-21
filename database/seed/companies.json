@@ -29,7 +29,7 @@
       "attribution_required": true,
       "attribution_text": "Market data: Upstox. For educational use only.",
       "redistribution_allowed": false,
-      "license_notes": "Public historical candle endpoint; fallback price source. Adjustment basis not stated."
+      "license_notes": "Public historical candle endpoint; fallback price source. Split/bonus-adjusted (verified against Yahoo)."
     },
     {
       "source_code": "eodhd",

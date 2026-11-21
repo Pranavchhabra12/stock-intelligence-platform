@@ -1,9 +1,13 @@
 """Upstox historical candles. First fallback for prices.
 
 The Historical Candle Data V3 endpoint is public (no account or token needed)
-and is keyed by exchange segment + ISIN, e.g. NSE_EQ|INE002A01018. Upstox does
-not state how its daily candles are adjusted, so rows are stored with
-`price_basis = "unknown"` until that is verified.
+and is keyed by exchange segment + ISIN, e.g. NSE_EQ|INE002A01018.
+
+Price basis, checked against Yahoo on five years of data (Nov 2026): closes
+agree to ~0.04% on average across bonus issues (e.g. Reliance's 1:1 bonus in
+2024), so Upstox candles are split/bonus-adjusted like Yahoo's. One known
+difference: before July 2023 Reliance's closes are a constant ~3.3% apart,
+because only one of the two providers adjusted for the Jio Financial demerger.
 
 Docs: https://upstox.com/developer/api-documentation/v3/get-historical-candle-data
 """
@@ -34,7 +38,7 @@ _SEGMENT = {"NSE": "NSE_EQ", "BSE": "BSE_EQ"}
 
 class UpstoxMarketDataAdapter(MarketDataProvider):
     source_code = "upstox"
-    price_basis = "unknown"
+    price_basis = "split_adjusted"
 
     def __init__(
         self, client: httpx.Client | None = None, min_interval_seconds: float = 0.5, max_attempts: int = 3,
