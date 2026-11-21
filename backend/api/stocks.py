@@ -85,7 +85,7 @@ def get_news(
     conn: DbConnection,
     ticker: Ticker,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    min_relevance: Annotated[float, Query(ge=0, le=1, description="0.5 hides search-only matches")] = 0.5,
+    min_relevance: Annotated[float, Query(ge=0, le=1, description="1.0 named in headline, 0.85 by short name, 0.6 only in the description")] = 0.5,
     before: Annotated[datetime | None, Query(description="Page cursor: `next_before` from the previous page")] = None,
 ) -> NewsResponse:
     """News and exchange announcements about a company, newest first.

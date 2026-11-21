@@ -16,7 +16,7 @@ from backend.providers.news.base import NewsItem, canonical_url, clean_text, hea
 from backend.providers.news.gdelt import GdeltNewsAdapter, build_query, parse_seendate, tidy_title
 from backend.providers.news.rss import GOOGLE_NEWS_SOURCE, Feed, RssAdapter, google_news_feed, parse_feed
 from backend.services.company_matcher import CompanyMatcher
-from backend.services.news_collector import NewsCollector, document_type_for
+from backend.services.news_collector import NewsCollector, document_type_for, is_not_news
 
 NO_SLEEP = lambda _s: None  # noqa: E731
 NOW = datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
@@ -366,3 +366,20 @@ def test_google_news_search_runs_per_company_and_keeps_headline_matches(engine: 
     NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
     infy = [u for u in rss.searched if "Infosys" in u]
     assert infy and "when%3A3d" in infy[0]   # Infosys now has news: only the last few days
+
+
+@pytest.mark.parametrize("headline, publisher", [
+    ("Infosys Share Price Today, Infosys Stock Price Live NSE/BSE Updates", "The Economic Times"),
+    ("Infosys Share Price - Live NSE: INFY Stock Price & Chart", "Upstox"),
+    ("Reliance Industries Limited (RELIANCE.NS) stock price, news, quote and history", "Yahoo Finance"),
+    ("Tata Consultancy Services (NSEI:TCS) - Stock Analysis", "Simply Wall St"),
+    ("Reliance Industries Limited. Where Innovation Powers", "Facebook"),
+])
+def test_search_results_that_are_not_news_are_skipped(headline: str, publisher: str) -> None:
+    assert is_not_news(NewsItem(source_code="google_news_rss", url="https://x", headline=headline, publisher=publisher))
+
+
+def test_real_headlines_are_not_skipped() -> None:
+    real = NewsItem(source_code="google_news_rss", url="https://x", publisher="Livemint",
+                    headline="Reliance Industries shares slip 2% amid Jio Platforms IPO listing")
+    assert not is_not_news(real)

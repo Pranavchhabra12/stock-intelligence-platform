@@ -325,7 +325,9 @@
           "yfinance": "INFY.BO"
         }
       ],
-      "news_exclude_phrases": []
+      "news_exclude_phrases": [
+        "Infosys Prize"
+      ]
     }
   ]
 }

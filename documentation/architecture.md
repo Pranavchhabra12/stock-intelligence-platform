@@ -16,6 +16,20 @@ Next.js frontend ──REST──▶ FastAPI backend ──▶ Supabase PostgreS
 - **Database**: Supabase Postgres is the single source of truth. Tables live in the private `app` schema; Power BI reads only `analytics` views (Phase 6).
 - **Power BI**: Desktop, Import mode, reading the `analytics` views. Shared as screenshots and a recording.
 
+## News and reports (Phase 3)
+
+```
+publisher RSS ─┐
+Google News ───┼─► company matcher ─► news_articles + article_companies (deduplicated)
+GDELT ─────────┘
+BSE filing RSS ─► match by BSE code ─► news_articles + company_documents
+company_documents ─► download PDF ─► SHA-256 check ─► text by page ─► document_chunks
+```
+
+- The matcher removes look-alike names first ("Reliance Power", "HDFC Life", "Infosys Prize"), then looks for full names (case-insensitive) and short codes such as "RIL" or "TCS" (case-sensitive).
+- Search results only count if the headline names the company; quote pages and social posts are skipped.
+- A document is re-extracted only when its file hash changes. Scanned PDFs with no text layer are marked `needs_ocr` rather than guessed at.
+
 ## Pipelines (Phase 5)
 
 One pipeline, two triggers:
@@ -29,7 +43,8 @@ One pipeline, two triggers:
 |---|---|
 | Frontend | Vercel |
 | Backend API | Render (free web service) |
-| Daily pipeline | GitHub Actions scheduled workflow |
+| Daily pipeline | GitHub Actions scheduled workflow (prices, financials, news) |
+| Hourly feeds | GitHub Actions, weekdays during market hours |
 | Database and file storage | Supabase Free |
 
 ## Key rules

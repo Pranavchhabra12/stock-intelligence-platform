@@ -17,7 +17,11 @@ pytestmark = [
 
 
 def test_gdelt_finds_reliance_news() -> None:
-    items = GdeltNewsAdapter().search(["Reliance Industries"], timespan="7d", max_records=20)
+    # GDELT is best effort: it often refuses cloud IPs, so a refusal is reported, not failed.
+    try:
+        items = GdeltNewsAdapter(max_attempts=1).search(["Reliance Industries"], timespan="7d", max_records=20)
+    except ProviderError as exc:
+        pytest.skip(f"GDELT unavailable from this machine: {exc}")
     for i in items[:5]:
         print(f"gdelt: {i.published_at} | {i.publisher} | {i.headline[:90]}")
     assert items

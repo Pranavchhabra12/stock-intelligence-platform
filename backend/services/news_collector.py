@@ -22,6 +22,7 @@ company document (fetched and parsed later by the document service).
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -39,6 +40,17 @@ from backend.services.company_matcher import CompanyMatcher, Match
 logger = logging.getLogger(__name__)
 
 SYNDICATION_WINDOW = timedelta(days=2)
+# Search results that aren't news: live-quote pages, stock profile pages and social posts.
+NOT_NEWS_TITLE = re.compile(
+    r"share price (today|live)|stock price (today|live)|live (nse|bse)|stock price & chart"
+    r"|stock price, news, quote|price, news, quote|\(\w+:\w+\) - stock analysis|share price prediction",
+    re.I,
+)
+NOT_NEWS_PUBLISHERS = {"facebook", "instagram", "x", "twitter", "youtube", "linkedin", "reddit", "threads"}
+
+
+def is_not_news(item: NewsItem) -> bool:
+    return bool(NOT_NEWS_TITLE.search(item.headline)) or (item.publisher or "").strip().lower() in NOT_NEWS_PUBLISHERS
 DOCUMENT_FEEDS = {"bse_financial_results": "quarterly_results", "bse_annual_reports": "annual_report"}
 # Announcement subjects that are worth keeping as documents, checked in order.
 ANNOUNCEMENT_DOCUMENTS = (
@@ -175,7 +187,7 @@ class NewsCollector:
         whole article, so a result that only mentions the company in its body is too weak to keep."""
         for item in items:
             result.items_seen += 1
-            matches = [m for m in matcher.match(item.headline) if m.company_id in wanted]
+            matches = [] if is_not_news(item) else [m for m in matcher.match(item.headline) if m.company_id in wanted]
             if not matches:
                 result.unmatched_dropped += 1
                 continue
