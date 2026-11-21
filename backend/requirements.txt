@@ -7,3 +7,5 @@ alembic>=1.16
 httpx>=0.28
 pandas>=2.2
 yfinance>=0.2.54
+defusedxml>=0.7
+pypdf>=5

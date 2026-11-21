@@ -41,6 +41,105 @@
       "attribution_text": "Market data: EODHD. For educational use only.",
       "redistribution_allowed": false,
       "license_notes": "Free plan: 20 calls/day, last year only. Last-resort fallback; needs EODHD_API_KEY."
+    },
+    {
+      "source_code": "gdelt",
+      "source_name": "GDELT DOC 2.0 news search",
+      "source_type": "news",
+      "base_url": "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "News discovery: The GDELT Project.",
+      "redistribution_allowed": null,
+      "license_notes": "Free, no key. Headline, link and publisher only; article text stays with the publisher."
+    },
+    {
+      "source_code": "et_markets_rss",
+      "source_name": "The Economic Times - Markets RSS",
+      "source_type": "news",
+      "base_url": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: The Economic Times.",
+      "redistribution_allowed": false,
+      "license_notes": "Publisher RSS feed. Headline, link and the feed's own short description only."
+    },
+    {
+      "source_code": "et_stocks_rss",
+      "source_name": "The Economic Times - Stocks RSS",
+      "source_type": "news",
+      "base_url": "https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: The Economic Times.",
+      "redistribution_allowed": false,
+      "license_notes": "Publisher RSS feed. Headline, link and the feed's own short description only."
+    },
+    {
+      "source_code": "mint_markets_rss",
+      "source_name": "Mint - Markets RSS",
+      "source_type": "news",
+      "base_url": "https://www.livemint.com/rss/markets",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: Mint.",
+      "redistribution_allowed": false,
+      "license_notes": "Publisher RSS feed. Headline, link and the feed's own short description only."
+    },
+    {
+      "source_code": "mint_companies_rss",
+      "source_name": "Mint - Companies RSS",
+      "source_type": "news",
+      "base_url": "https://www.livemint.com/rss/companies",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: Mint.",
+      "redistribution_allowed": false,
+      "license_notes": "Publisher RSS feed. Headline, link and the feed's own short description only."
+    },
+    {
+      "source_code": "bse_announcements",
+      "source_name": "BSE - Latest corporate announcements RSS",
+      "source_type": "exchange_filing",
+      "base_url": "https://beta.bseindia.com/data/xml/announcements.xml",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: BSE Ltd. Announcements are not verified by the exchange.",
+      "redistribution_allowed": null,
+      "license_notes": "Official BSE RSS feed. Companies' own filings, linked to the original."
+    },
+    {
+      "source_code": "bse_financial_results",
+      "source_name": "BSE - Latest financial results RSS",
+      "source_type": "financial_report",
+      "base_url": "https://www.bseindia.com/Data/XML/FinancialResultsFeed.aspx",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: BSE Ltd.",
+      "redistribution_allowed": null,
+      "license_notes": "Official BSE RSS feed of results filings."
+    },
+    {
+      "source_code": "bse_annual_reports",
+      "source_name": "BSE - Latest annual reports RSS",
+      "source_type": "financial_report",
+      "base_url": "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Source: BSE Ltd.",
+      "redistribution_allowed": null,
+      "license_notes": "Official BSE RSS feed of annual report filings."
+    },
+    {
+      "source_code": "manual_document",
+      "source_name": "Document added by URL",
+      "source_type": "financial_report",
+      "base_url": null,
+      "terms_url": null,
+      "attribution_required": false,
+      "attribution_text": null,
+      "redistribution_allowed": null,
+      "license_notes": "Company publications added by hand from their investor-relations sites."
     }
   ],
   "companies": [
@@ -73,6 +172,17 @@
           "isin": "INE002A01018",
           "yfinance": "RELIANCE.BO"
         }
+      ],
+      "news_exclude_phrases": [
+        "Reliance Power",
+        "Reliance Infrastructure",
+        "Reliance Infra",
+        "Reliance Capital",
+        "Reliance Communications",
+        "Reliance Home Finance",
+        "Reliance Nippon",
+        "Reliance General Insurance",
+        "Reliance Securities"
       ]
     },
     {
@@ -100,6 +210,16 @@
           "isin": "INE040A01034",
           "yfinance": "HDFCBANK.BO"
         }
+      ],
+      "news_exclude_phrases": [
+        "HDFC Life",
+        "HDFC AMC",
+        "HDFC Asset Management",
+        "HDFC Ergo",
+        "HDFC Securities",
+        "HDFC Credila",
+        "HDFC Mutual Fund",
+        "HDFC Capital"
       ]
     },
     {
@@ -131,7 +251,8 @@
           "isin": "INE467B01029",
           "yfinance": "TCS.BO"
         }
-      ]
+      ],
+      "news_exclude_phrases": []
     },
     {
       "company_name": "ICICI Bank",
@@ -158,6 +279,13 @@
           "isin": "INE090A01021",
           "yfinance": "ICICIBANK.BO"
         }
+      ],
+      "news_exclude_phrases": [
+        "ICICI Prudential",
+        "ICICI Lombard",
+        "ICICI Securities",
+        "ICICI Direct",
+        "ICICIdirect"
       ]
     },
     {
@@ -185,7 +313,8 @@
           "isin": "INE009A01021",
           "yfinance": "INFY.BO"
         }
-      ]
+      ],
+      "news_exclude_phrases": []
     }
   ]
 }

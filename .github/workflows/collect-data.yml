@@ -1,4 +1,4 @@
-name: Collect market data
+name: Collect market data and news
 
 # The scheduled pipeline for the hosted demo (APScheduler does the same job locally).
 # Needs a repository secret DATABASE_URL: the Supabase *Session pooler* connection string.
@@ -53,5 +53,18 @@ jobs:
             python -m backend.collect $TICKERS
           else
             echo "::error::Tickers may only contain letters, digits, &, ., - and spaces."
+            exit 1
+          fi
+      - name: Collect news, exchange filings and documents
+        # Runs even if prices had errors: the two don't depend on each other.
+        if: success() || failure()
+        env:
+          TICKERS: ${{ github.event.inputs.tickers }}
+        run: |
+          if [ -z "$TICKERS" ]; then
+            python -m backend.collect_news --all
+          elif [[ "$TICKERS" =~ ^[A-Za-z0-9\&.\ -]+$ ]]; then
+            python -m backend.collect_news $TICKERS
+          else
             exit 1
           fi
