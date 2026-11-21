@@ -1,0 +1,22 @@
+# Decision log
+
+Short records of architectural choices and why they were made. The finalised stack (Next.js, FastAPI, Supabase, APScheduler, Power BI Import) is unchanged by any of these.
+
+| # | Decision | Why |
+|---|---|---|
+| 1 | Scope: portfolio project on free tiers | Built to demonstrate engineering, not to run as a business |
+| 2 | ISIN on `company_listings`, not `companies` | ISIN identifies a security; one company can have several |
+| 3 | Search aliases table with trigram index | Lets "RIL", "Tata Consultancy" and typos like "relaince" find the right company |
+| 4 | `listing_provider_ids` table | Each provider names instruments differently; keeps adapters swappable |
+| 5 | Tables in a private `app` schema, RLS on everything | Supabase's public API cannot read them even if misconfigured |
+| 6 | SQLAlchemy Core + psycopg 3, not supabase-py | Transactions and `ON CONFLICT` upserts; explicit SQL |
+| 7 | Alembic with hand-written SQL, no autogenerate | The SQL reviewed is the SQL that runs |
+| 8 | `text` + `CHECK` instead of Postgres enums | Easier to change in migrations |
+| 9 | Session pooler connection, prepared statements off | Render cannot reach Supabase's IPv6 direct connection; works behind any pooler mode |
+| 10 | Primary price source: `yfinance` (Phase 2) | Free, no account; wrapped in an adapter with retries and caching because it is unofficial |
+| 11 | Scheduled runs: APScheduler locally, GitHub Actions in the hosted demo | Free Render instances sleep, so an in-process scheduler cannot run there |
+| 12 | `collection_jobs` doubles as the job queue | Retries and dedupe without adding Redis/Celery |
+| 13 | Basic, bank-friendly metric set | Price, market cap, P/E, P/B, dividend yield, revenue, net profit, EPS, ROE, growth: all apply to banks, so nothing is "not applicable" |
+| 14 | Power BI Desktop, shared via screenshots | Power BI Service cannot refresh from Supabase without a gateway; "Publish to web" would make data public |
+| 15 | Store raw prices; adjust in a view | Adjusted closes change after splits, which would rewrite history |
+| 16 | AI analyses keyed by source × company | One article can be good news for one company and bad for another |

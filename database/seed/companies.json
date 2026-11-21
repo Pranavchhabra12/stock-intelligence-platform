@@ -1,0 +1,88 @@
+{
+  "_note": "Initial test companies. Identifiers must be checked against each company's NSE and BSE pages before relying on them; set 'verified' to true once checked. CIN, sector and industry stay null until verified from an official source.",
+  "data_sources": [
+    {
+      "source_code": "manual_seed",
+      "source_name": "Manually entered seed data",
+      "source_type": "reference",
+      "attribution_required": false,
+      "redistribution_allowed": true,
+      "license_notes": "Entered by the project author from public company and exchange pages."
+    },
+    {
+      "source_code": "yfinance",
+      "source_name": "Yahoo Finance (via the yfinance library)",
+      "source_type": "market_data",
+      "base_url": "https://finance.yahoo.com",
+      "terms_url": "https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html",
+      "attribution_required": true,
+      "attribution_text": "Market data: Yahoo Finance. For educational use only.",
+      "redistribution_allowed": false,
+      "license_notes": "Unofficial access; personal and educational use only. Used from Phase 2."
+    }
+  ],
+  "companies": [
+    {
+      "company_name": "Reliance Industries",
+      "legal_name": "Reliance Industries Limited",
+      "verified": false,
+      "aliases": [
+        {"alias": "Reliance", "alias_type": "name"},
+        {"alias": "RIL", "alias_type": "abbreviation"}
+      ],
+      "listings": [
+        {"exchange": "NSE", "symbol": "RELIANCE", "series": "EQ", "isin": "INE002A01018", "yfinance": "RELIANCE.NS"},
+        {"exchange": "BSE", "symbol": "RELIANCE", "exchange_code": "500325", "isin": "INE002A01018", "yfinance": "RELIANCE.BO"}
+      ]
+    },
+    {
+      "company_name": "HDFC Bank",
+      "legal_name": "HDFC Bank Limited",
+      "verified": false,
+      "aliases": [
+        {"alias": "HDFC", "alias_type": "abbreviation"}
+      ],
+      "listings": [
+        {"exchange": "NSE", "symbol": "HDFCBANK", "series": "EQ", "isin": "INE040A01034", "yfinance": "HDFCBANK.NS"},
+        {"exchange": "BSE", "symbol": "HDFCBANK", "exchange_code": "500180", "isin": "INE040A01034", "yfinance": "HDFCBANK.BO"}
+      ]
+    },
+    {
+      "company_name": "Tata Consultancy Services",
+      "legal_name": "Tata Consultancy Services Limited",
+      "verified": false,
+      "aliases": [
+        {"alias": "TCS", "alias_type": "abbreviation"},
+        {"alias": "Tata Consultancy", "alias_type": "name"}
+      ],
+      "listings": [
+        {"exchange": "NSE", "symbol": "TCS", "series": "EQ", "isin": "INE467B01029", "yfinance": "TCS.NS"},
+        {"exchange": "BSE", "symbol": "TCS", "exchange_code": "532540", "isin": "INE467B01029", "yfinance": "TCS.BO"}
+      ]
+    },
+    {
+      "company_name": "ICICI Bank",
+      "legal_name": "ICICI Bank Limited",
+      "verified": false,
+      "aliases": [
+        {"alias": "ICICI", "alias_type": "abbreviation"}
+      ],
+      "listings": [
+        {"exchange": "NSE", "symbol": "ICICIBANK", "series": "EQ", "isin": "INE090A01021", "yfinance": "ICICIBANK.NS"},
+        {"exchange": "BSE", "symbol": "ICICIBANK", "exchange_code": "532174", "isin": "INE090A01021", "yfinance": "ICICIBANK.BO"}
+      ]
+    },
+    {
+      "company_name": "Infosys",
+      "legal_name": "Infosys Limited",
+      "verified": false,
+      "aliases": [
+        {"alias": "Infy", "alias_type": "abbreviation"}
+      ],
+      "listings": [
+        {"exchange": "NSE", "symbol": "INFY", "series": "EQ", "isin": "INE009A01021", "yfinance": "INFY.NS"},
+        {"exchange": "BSE", "symbol": "INFY", "exchange_code": "500209", "isin": "INE009A01021", "yfinance": "INFY.BO"}
+      ]
+    }
+  ]
+}
