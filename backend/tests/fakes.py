@@ -31,7 +31,7 @@ def weekday_bars(start: date, end: date, base: float = 100.0) -> list[PriceBar]:
 class FakeProvider(MarketDataProvider):
     def __init__(
         self, source_code: str = "yfinance", price_basis: str = "split_adjusted", *,
-        fail_prices: bool = False, empty_prices: bool = False,
+        fail_prices: bool = False, empty_prices: bool = False, thin_prices: bool = False,
         actions: list[CorporateAction] | None = None,
         financials: list[FinancialPeriodData] | None = None,
         profile: CompanyProfile | None = None,
@@ -41,6 +41,7 @@ class FakeProvider(MarketDataProvider):
         self.price_basis = price_basis  # type: ignore[assignment]
         self.fail_prices = fail_prices
         self.empty_prices = empty_prices
+        self.thin_prices = thin_prices  # only the last day, like Yahoo's sparse BSE data
         self.actions = actions or []
         self.financials = financials or []
         self.profile = profile
@@ -52,6 +53,8 @@ class FakeProvider(MarketDataProvider):
         if self.fail_prices:
             raise ProviderUnavailableError(f"{self.source_code} is down")
         bars = [] if self.empty_prices else weekday_bars(start, end)
+        if self.thin_prices:
+            bars = bars[-1:]
         return PriceHistory(self.source_code, self.price_basis, bars)  # type: ignore[arg-type]
 
     def get_corporate_actions(self, listing: ListingKey) -> list[CorporateAction]:

@@ -119,22 +119,30 @@ class MarketDataCollector:
                 a.action_type in ("split", "bonus") and first is not None and a.ex_date > first
                 for a in new_actions
             )
+            # Which date ranges to fetch, oldest first.
+            ranges: list[tuple[date, date]] = []
             if last is None or rescaled:
                 start = self.backfill_start if first is None else min(first, self.backfill_start)
+                ranges.append((start, self.today))
                 if rescaled:
                     result.full_refetch.append(label)
             else:
-                start = last + timedelta(days=1)
-            if start > self.today:
-                return
+                # History that starts well after the backfill window has a gap at the
+                # front (an earlier run got thin data): fill it.
+                if first > self.backfill_start + timedelta(days=30):
+                    ranges.append((self.backfill_start, first - timedelta(days=1)))
+                ranges.append((last + timedelta(days=1), self.today))
 
-            history = self.chain.get_price_history(key, start, self.today)
-            with self.engine.begin() as conn:
-                result.prices_upserted += MarketDataRepository(conn).upsert_prices(
-                    listing_id, history.bars, history.price_basis, self.source_ids[history.source_code]
-                )
-            if history.bars:
-                result.price_sources[label] = history.source_code
+            for range_start, range_end in ranges:
+                if range_start > range_end:
+                    continue
+                history = self.chain.get_price_history(key, range_start, range_end)
+                with self.engine.begin() as conn:
+                    result.prices_upserted += MarketDataRepository(conn).upsert_prices(
+                        listing_id, history.bars, history.price_basis, self.source_ids[history.source_code]
+                    )
+                if history.bars:
+                    result.price_sources[label] = history.source_code
 
         self._step(result, f"{label} prices", prices)
 
