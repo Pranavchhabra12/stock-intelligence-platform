@@ -102,6 +102,8 @@ def test_document_types_from_filings() -> None:
 
 def test_gdelt_titles_are_tidied() -> None:
     assert tidy_title("RIL , SAIL among top upgrades ( up 3 % )") == "RIL, SAIL among top upgrades (up 3%)"
+    assert tidy_title("Firms lose ₹1. 55 lakh cr - TeluguPeople. com News") == \
+        "Firms lose ₹1.55 lakh cr - TeluguPeople.com News"
 
 
 def test_hostile_xml_is_refused() -> None:
@@ -259,15 +261,15 @@ def test_syndicated_copy_under_another_url_is_the_same_story(engine: Engine, cle
     assert result.articles_new == 1 and result.duplicates == 1
 
 
-def test_gdelt_results_without_the_name_get_low_relevance(engine: Engine, clean: None) -> None:
+def test_gdelt_results_must_name_the_company_in_the_headline(engine: Engine, clean: None) -> None:
     gdelt = FakeGdelt([
         item("gdelt", "https://g/1", "Reliance Industries signs energy pact"),
         item("gdelt", "https://g/2", "Oil prices and the query economy"),   # returned by the search, no name
     ])
-    NewsCollector(engine, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
     got = {h: (score, mention) for company, h, score, mention in links(engine) if company == "Reliance Industries"}
-    assert got["Reliance Industries signs energy pact"] == (1.0, "headline")
-    assert got["Oil prices and the query economy"] == (0.4, "query")
+    assert got == {"Reliance Industries signs energy pact": (1.0, "headline")}
+    assert result.unmatched_dropped >= 1
     assert dict(gdelt.calls)[("Reliance Industries", "Reliance Industries Limited")] == "1m"  # first run: a month
 
 
@@ -309,8 +311,9 @@ def test_news_api_filters_paginates_and_attributes(client: TestClient, engine: E
     assert [a["headline"] for a in page2["articles"]] == ["Infosys update number 1", "Infosys update number 0"]
     assert page2["next_before"] is None
 
-    everything = client.get("/stocks/INFY/news", params={"min_relevance": 0, "limit": 50}).json()
-    assert any(a["mention_type"] == "query" for a in everything["articles"])   # hidden by default, visible at 0
+    # Snippet-only mentions (0.6) are shown by default; raising the bar hides them.
+    strict = client.get("/stocks/INFY/news", params={"min_relevance": 0.9, "limit": 50}).json()
+    assert strict["count"] == 0   # these headlines use the one-word name "Infosys" (0.85)
 
 
 def test_news_api_unknown_ticker(client: TestClient) -> None:
