@@ -89,6 +89,14 @@ pytest                                        # full test suite
 
 To use Supabase instead, put its **Session pooler** connection string (with `?sslmode=require`) in `DATABASE_URL`, then run the same migration and seed commands.
 
+## Hosted setup
+
+The database runs on Supabase (free plan). Data collection for the hosted demo runs on GitHub Actions:
+
+1. In the repo: **Settings → Secrets and variables → Actions → New repository secret**, name `DATABASE_URL`, value = the Supabase **Session pooler** connection string with your password filled in.
+2. Optional: add `EODHD_API_KEY` the same way to enable the third price source.
+3. **Actions → Collect market data → Run workflow.** It applies any new migrations, loads the seed companies and collects prices and financials. After that it runs by itself every weekday at 19:30 IST.
+
 ## Data sources
 
 | Source | Used for | Notes |
