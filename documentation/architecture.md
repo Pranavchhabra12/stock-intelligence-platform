@@ -12,7 +12,7 @@ Next.js frontend ──REST──▶ FastAPI backend ──▶ Supabase PostgreS
 
 - **Frontend** (Phase 7): search, company pages, job progress, AI summaries.
 - **Backend**: FastAPI. Routes in `api/` stay thin; rules live in `services/`; all SQL lives in `database/repositories.py`.
-- **Adapters** (Phase 2+): one interface per kind of provider, so a source can be replaced by writing one class.
+- **Adapters**: one interface per kind of provider, so a source can be replaced by writing one class. Prices go through a fallback chain (Yahoo Finance → Upstox → EODHD); each stored row records which provider supplied it.
 - **Database**: Supabase Postgres is the single source of truth. Tables live in the private `app` schema; Power BI reads only `analytics` views (Phase 6).
 - **Power BI**: Desktop, Import mode, reading the `analytics` views. Shared as screenshots and a recording.
 

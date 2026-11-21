@@ -7,8 +7,11 @@ from sqlalchemy import create_engine, text
 
 from backend.tests.conftest import _recreate_database, alembic_config
 
-PHASE1_TABLES = {
+APP_TABLES = {
+    # Phase 1
     "data_sources", "companies", "company_listings", "company_aliases", "listing_provider_ids",
+    # Phase 2
+    "daily_prices", "corporate_actions", "metric_definitions", "financial_periods", "financial_metrics",
 }
 
 
@@ -35,11 +38,11 @@ def test_round_trip() -> None:
 
     command.upgrade(cfg, "head")
     tables = _tables(url)
-    assert set(tables) == PHASE1_TABLES
+    assert set(tables) == APP_TABLES
     assert all(tables.values()), "row level security must be enabled on every app table"
 
     command.downgrade(cfg, "base")
     assert _tables(url) == {}
 
     command.upgrade(cfg, "head")
-    assert set(_tables(url)) == PHASE1_TABLES
+    assert set(_tables(url)) == APP_TABLES
