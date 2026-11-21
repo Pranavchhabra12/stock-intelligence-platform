@@ -14,7 +14,7 @@ from sqlalchemy import Engine, text
 from backend.providers.market_data.base import ProviderError
 from backend.providers.news.base import NewsItem, canonical_url, clean_text, headline_hash
 from backend.providers.news.gdelt import GdeltNewsAdapter, build_query, parse_seendate, tidy_title
-from backend.providers.news.rss import Feed, RssAdapter, parse_feed
+from backend.providers.news.rss import GOOGLE_NEWS_SOURCE, Feed, RssAdapter, google_news_feed, parse_feed
 from backend.services.company_matcher import CompanyMatcher
 from backend.services.news_collector import NewsCollector, document_type_for
 
@@ -247,7 +247,7 @@ def test_feed_items_are_matched_stored_once_and_unrelated_ones_dropped(engine: E
         item("et_markets_rss", "https://et/1?utm_source=b", "Infosys wins large deal"),  # same URL, other tracking
         item("et_markets_rss", "https://et/2", "Gold prices fall"),
     ]})
-    result = NewsCollector(engine, rss=rss, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
     assert result.articles_new == 1 and result.duplicates == 1 and result.unmatched_dropped == 1
     assert links(engine) == [("Infosys", "Infosys wins large deal", 0.85, "headline")]
 
@@ -257,7 +257,7 @@ def test_syndicated_copy_under_another_url_is_the_same_story(engine: Engine, cle
         item("et_markets_rss", "https://et/story", "TCS Q2 results: profit rises 8%"),
         item("et_markets_rss", "https://other.com/tcs-q2", "TCS Q2 Results - Profit Rises 8%"),
     ]})
-    result = NewsCollector(engine, rss=rss, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
     assert result.articles_new == 1 and result.duplicates == 1
 
 
@@ -266,7 +266,7 @@ def test_gdelt_results_must_name_the_company_in_the_headline(engine: Engine, cle
         item("gdelt", "https://g/1", "Reliance Industries signs energy pact"),
         item("gdelt", "https://g/2", "Oil prices and the query economy"),   # returned by the search, no name
     ])
-    result = NewsCollector(engine, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, sleep=lambda _: None, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
     got = {h: (score, mention) for company, h, score, mention in links(engine) if company == "Reliance Industries"}
     assert got == {"Reliance Industries signs energy pact": (1.0, "headline")}
     assert result.unmatched_dropped >= 1
@@ -280,7 +280,7 @@ def test_bse_results_filing_registers_a_document(engine: Engine, clean: None) ->
         NewsItem("bse_financial_results", "https://bse/att/abc.pdf", "HDFC Bank Ltd: Financial results",
                  publisher="BSE", kind="exchange_filing", exchange_code="500180"),
     ]})
-    result = NewsCollector(engine, rss=rss, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
     assert result.documents_registered == 1
     with engine.connect() as conn:
         doc = conn.execute(text("select document_type, extraction_status from app.company_documents")).one()
@@ -290,7 +290,7 @@ def test_bse_results_filing_registers_a_document(engine: Engine, clean: None) ->
 def test_one_failing_feed_does_not_stop_the_rest(engine: Engine, clean: None) -> None:
     rss = FakeRss({"bse_financial_results": [item("bse_financial_results", "https://b/1", "Infosys Limited results")]},
                   fail={"et_markets_rss"})
-    result = NewsCollector(engine, rss=rss, feeds=FEEDS, now=NOW).collect()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
     assert result.status == "completed_with_errors"
     assert result.articles_new == 1
 
@@ -303,8 +303,8 @@ def test_news_api_filters_paginates_and_attributes(client: TestClient, engine: E
                  datetime(2026, 11, 1 + i, 9, 0, tzinfo=UTC))
         for i in range(5)
     ]})
-    NewsCollector(engine, rss=rss, gdelt=FakeGdelt([item("gdelt", "https://g/q", "query only result")]),
-                  feeds=FEEDS, now=NOW).collect()
+    gdelt = FakeGdelt([item("gdelt", "https://g/q", "query only result")])
+    NewsCollector(engine, sleep=lambda _: None, rss=rss, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
 
     page1 = client.get("/stocks/INFY/news", params={"limit": 3}).json()
     assert [a["headline"] for a in page1["articles"]] == [f"Infosys update number {i}" for i in (4, 3, 2)]
@@ -320,3 +320,49 @@ def test_news_api_filters_paginates_and_attributes(client: TestClient, engine: E
 
 def test_news_api_unknown_ticker(client: TestClient) -> None:
     assert client.get("/stocks/NOSUCHCO/news").status_code == 404
+
+
+GOOGLE_XML = b"""<?xml version="1.0"?><rss version="2.0"><channel><title>Search</title>
+<item><title>Infosys wins $1.5 billion deal from European bank - Moneycontrol</title>
+<link>https://news.google.com/rss/articles/abc?oc=5</link>
+<pubDate>Fri, 20 Nov 2026 10:15:00 GMT</pubDate>
+<description>&lt;a href="https://news.google.com/rss/articles/abc"&gt;Infosys wins&lt;/a&gt;</description>
+<source url="https://www.moneycontrol.com">Moneycontrol</source></item>
+</channel></rss>"""
+
+
+def test_google_news_feed_url_and_parsing() -> None:
+    feed = google_news_feed(["Infosys", "Infosys Limited"], days=3)
+    assert feed.source_code == GOOGLE_NEWS_SOURCE
+    assert "q=%22Infosys%22+OR+%22Infosys+Limited%22+when%3A3d" in feed.url and "gl=IN" in feed.url
+    [got] = parse_feed(GOOGLE_XML, feed)
+    assert got.headline == "Infosys wins $1.5 billion deal from European bank"   # " - Publisher" removed
+    assert got.publisher == "Moneycontrol" and got.snippet is None
+    assert got.published_at == datetime(2026, 11, 20, 10, 15, tzinfo=UTC)
+
+
+def test_google_news_search_runs_per_company_and_keeps_headline_matches(engine: Engine, clean: None) -> None:
+    class SearchRss(FakeRss):
+        def __init__(self) -> None:
+            super().__init__({})
+            self.searched: list[str] = []
+
+        def fetch(self, feed: Feed) -> list[NewsItem]:
+            if feed.source_code != GOOGLE_NEWS_SOURCE:
+                return []
+            self.searched.append(feed.url)
+            return [item(GOOGLE_NEWS_SOURCE, "https://news.google.com/a1", "Infosys shares climb after deal win"),
+                    item(GOOGLE_NEWS_SOURCE, "https://news.google.com/a2", "Nifty IT index ends higher")]
+
+    rss = SearchRss()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert len(rss.searched) == 5 and all("when%3A30d" in u for u in rss.searched)  # first run: a month
+    got = {(c, h) for c, h, *_ in links(engine)}
+    assert ("Infosys", "Infosys shares climb after deal win") in got
+    assert not any(h == "Nifty IT index ends higher" for _, h in got)
+    assert result.errors == []
+
+    rss.searched.clear()
+    NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    infy = [u for u in rss.searched if "Infosys" in u]
+    assert infy and "when%3A3d" in infy[0]   # Infosys now has news: only the last few days

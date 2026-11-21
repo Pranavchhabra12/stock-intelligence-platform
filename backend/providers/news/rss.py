@@ -1,4 +1,4 @@
-"""RSS / Atom feeds: publisher news feeds and BSE's official filing feeds.
+"""RSS / Atom feeds: publisher news feeds, Google News search and BSE's official filing feeds.
 
 Feeds are parsed with defusedxml, which refuses entity-expansion and
 external-entity tricks that a hostile feed could use against a plain XML
@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlencode
 from xml.etree.ElementTree import Element
 
 import httpx
@@ -54,6 +55,28 @@ DEFAULT_FEEDS: tuple[Feed, ...] = (
     Feed("bse_annual_reports", "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx", "BSE", "exchange_filing",
          "Annual report"),
 )
+
+
+GOOGLE_NEWS_SOURCE = "google_news_rss"
+
+
+def google_news_feed(names: list[str], days: int = 3) -> Feed:
+    """A Google News search feed for one company, limited to Indian English editions."""
+    terms = " OR ".join(f'"{n}"' for n in dict.fromkeys(names) if n)
+    query = f"{terms} when:{days}d"
+    url = "https://news.google.com/rss/search?" + urlencode({"q": query, "hl": "en-IN", "gl": "IN", "ceid": "IN:en"})
+    return Feed(GOOGLE_NEWS_SOURCE, url, "Google News")
+
+
+def _shape_google_item(item: NewsItem, source: str | None) -> NewsItem:
+    """Google News titles end with " - Publisher" and the description only repeats the title."""
+    headline = item.headline
+    if source and headline.endswith(f" - {source}"):
+        headline = headline[: -len(source) - 3].rstrip()
+    return NewsItem(
+        source_code=item.source_code, url=item.url, headline=headline, snippet=None,
+        publisher=source or item.publisher, published_at=item.published_at, language="english", kind=item.kind,
+    )
 
 
 def _text(el: Element | None) -> str | None:
@@ -105,11 +128,14 @@ def parse_feed(xml: bytes, feed: Feed) -> list[NewsItem]:
     for item in root.iter("item"):  # RSS 2.0
         link, title = _text(item.find("link")), clean_text(_text(item.find("title")))
         if link and title:
-            items.append(NewsItem(
+            parsed = NewsItem(
                 source_code=feed.source_code, url=link, headline=title, publisher=feed.publisher, kind=feed.kind,
                 snippet=clean_text(_text(item.find("description")), SNIPPET_MAX),
                 published_at=_parse_date(_text(item.find("pubDate"))),
-            ))
+            )
+            if feed.source_code == GOOGLE_NEWS_SOURCE:
+                parsed = _shape_google_item(parsed, clean_text(_text(item.find("source"))))
+            items.append(parsed)
     for entry in root.iter(f"{_ATOM}entry"):  # Atom
         link_el = entry.find(f"{_ATOM}link")
         link = link_el.get("href") if link_el is not None else None

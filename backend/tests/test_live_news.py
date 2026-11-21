@@ -8,7 +8,7 @@ import pytest
 
 from backend.providers.market_data.base import ProviderError
 from backend.providers.news.gdelt import GdeltNewsAdapter
-from backend.providers.news.rss import DEFAULT_FEEDS, RssAdapter
+from backend.providers.news.rss import DEFAULT_FEEDS, RssAdapter, google_news_feed
 
 pytestmark = [
     pytest.mark.live,
@@ -20,6 +20,13 @@ def test_gdelt_finds_reliance_news() -> None:
     items = GdeltNewsAdapter().search(["Reliance Industries"], timespan="7d", max_records=20)
     for i in items[:5]:
         print(f"gdelt: {i.published_at} | {i.publisher} | {i.headline[:90]}")
+    assert items
+
+
+def test_google_news_search_finds_infosys() -> None:
+    items = RssAdapter().fetch(google_news_feed(["Infosys"], days=7))
+    for i in items[:5]:
+        print(f"google news: {i.published_at} | {i.publisher} | {i.headline[:90]}")
     assert items
 
 
