@@ -63,6 +63,9 @@ class YahooMarketDataAdapter(MarketDataProvider):
     ) -> None:
         self.policy = CallPolicy(self.source_code, min_interval_seconds, max_attempts, sleep)
         self._ticker_factory = ticker_factory
+        # How to make yfinance raise instead of hiding errors: newer versions use a
+        # global config switch, older ones a `raise_errors` argument.
+        self._history_kwargs: dict[str, Any] = {"raise_errors": True}
 
     def symbol_for(self, listing: ListingKey) -> str:
         if self.source_code in listing.overrides:
@@ -75,6 +78,10 @@ class YahooMarketDataAdapter(MarketDataProvider):
         if self._ticker_factory is None:
             import yfinance  # lazy: heavy, and only needed when collecting
 
+            debug = getattr(getattr(yfinance, "config", None), "debug", None)
+            if debug is not None and hasattr(debug, "hide_exceptions"):
+                debug.hide_exceptions = False
+                self._history_kwargs = {}
             self._ticker_factory = yfinance.Ticker
         return self._ticker_factory(symbol)
 
@@ -87,7 +94,7 @@ class YahooMarketDataAdapter(MarketDataProvider):
         def fetch() -> Any:
             try:
                 return ticker.history(start=start.isoformat(), end=(end + timedelta(days=1)).isoformat(),
-                                      interval="1d", auto_adjust=False, actions=False, raise_errors=True)
+                                      interval="1d", auto_adjust=False, actions=False, **self._history_kwargs)
             except Exception as exc:
                 # "No prices in this range" (weekend, holiday) is a real answer, not a failure.
                 if type(exc).__name__ == "YFPricesMissingError":
