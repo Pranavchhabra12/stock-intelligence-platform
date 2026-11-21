@@ -270,7 +270,9 @@ def test_gdelt_results_must_name_the_company_in_the_headline(engine: Engine, cle
     got = {h: (score, mention) for company, h, score, mention in links(engine) if company == "Reliance Industries"}
     assert got == {"Reliance Industries signs energy pact": (1.0, "headline")}
     assert result.unmatched_dropped >= 1
-    assert dict(gdelt.calls)[("Reliance Industries", "Reliance Industries Limited")] == "1m"  # first run: a month
+    assert len(gdelt.calls) == 1                       # one combined search, not one per company
+    names, timespan = gdelt.calls[0]
+    assert {"Reliance Industries", "Infosys"} <= set(names) and timespan == "1m"   # first run: a month
 
 
 def test_bse_results_filing_registers_a_document(engine: Engine, clean: None) -> None:

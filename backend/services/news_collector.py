@@ -3,7 +3,7 @@
 Sources:
 - publisher RSS feeds and BSE's official filing feeds (market-wide): every item
   is matched against our companies; items about none of them are dropped;
-- GDELT (per company): a search by company name. GDELT matches the full
+- GDELT: one combined search for a batch of companies. GDELT matches the full
   article text, so many results only mention the company in passing; only
   results whose headline names the company are kept.
 
@@ -53,6 +53,13 @@ def document_type_for(item: NewsItem) -> str | None:
             if keyword in subject:
                 return doc_type
     return None
+
+
+GDELT_BATCH_SIZE = 8   # keeps the OR query well under GDELT's length limit
+
+
+def _batches(items: list, size: int) -> list[list]:
+    return [items[i:i + size] for i in range(0, len(items), size)]
 
 
 @dataclass
@@ -123,14 +130,18 @@ class NewsCollector:
                         self._register_document(item, matches, doc_type, result)
 
         if self.gdelt:
-            for c in companies:
-                names = sorted({c["company_name"], *(c["names"] or [])})
+            # One combined search per batch of companies rather than one per company:
+            # GDELT throttles hard, and the headline matcher works out which company
+            # each result is about anyway.
+            for batch in _batches(companies, GDELT_BATCH_SIZE):
+                names = sorted({n for c in batch for n in (c["company_name"], *(c["names"] or []))})
                 # First run looks back a month; afterwards a few days is enough.
-                timespan = "3d" if c["has_news"] else "1m"
+                timespan = "3d" if all(c["has_news"] for c in batch) else "1m"
+                label = ", ".join(c["company_name"] for c in batch)
                 try:
-                    items = self.gdelt.search(names, timespan=timespan)
+                    items = self.gdelt.search(names, timespan=timespan, max_records=250)
                 except (ProviderError, ValueError) as exc:
-                    result.errors.append(f"gdelt {c['company_name']}: {exc}")
+                    result.errors.append(f"gdelt ({label}): {exc}")
                     continue
                 for item in items:
                     result.items_seen += 1
