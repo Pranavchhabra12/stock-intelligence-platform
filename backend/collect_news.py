@@ -4,13 +4,15 @@
     python -m backend.collect_news RELIANCE TCS       # chosen companies
     python -m backend.collect_news --all --no-gdelt   # feeds only
 
-Exit code 0 if everything succeeded, 1 if any source failed.
+Exit code 1 only if every source failed or a document could not be processed.
+A single source being down (GDELT is often busy) is reported as a warning.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from backend.core.config import get_settings
@@ -52,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
                               rss=None if args.no_feeds else RssAdapter())
     news = collector.collect(company_ids)
     print(json.dumps({"news": {**vars(news), "status": news.status}}))
-    ok = news.status == "completed"
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for error in news.errors:
+            print(f"::warning::{error}")
+    ok = news.status != "failed"
 
     if not args.no_documents:
         docs = DocumentService(engine).ingest_pending()

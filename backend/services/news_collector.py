@@ -3,8 +3,9 @@
 Sources:
 - publisher RSS feeds and BSE's official filing feeds (market-wide): every item
   is matched against our companies; items about none of them are dropped;
-- GDELT (per company): a search by company name; results whose headline
-  doesn't name the company are still linked, with a low "query" relevance.
+- GDELT (per company): a search by company name. GDELT matches the full
+  article text, so many results only mention the company in passing; only
+  results whose headline names the company are kept.
 
 Deduplication:
 - the same URL (after canonicalisation) is stored once;
@@ -28,11 +29,10 @@ from backend.providers.market_data.base import ProviderError
 from backend.providers.news.base import NewsItem, canonical_url, headline_hash, url_hash
 from backend.providers.news.gdelt import GdeltNewsAdapter
 from backend.providers.news.rss import DEFAULT_FEEDS, Feed, RssAdapter
-from backend.services.company_matcher import CompanyMatcher, Match
+from backend.services.company_matcher import CompanyMatcher, Match  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-QUERY_ONLY_RELEVANCE = 0.4
 SYNDICATION_WINDOW = timedelta(days=2)
 DOCUMENT_FEEDS = {"bse_financial_results": "quarterly_results", "bse_annual_reports": "annual_report"}
 # Announcement subjects that are worth keeping as documents, checked in order.
@@ -124,7 +124,7 @@ class NewsCollector:
 
         if self.gdelt:
             for c in companies:
-                names = sorted(set(c["names"] or [c["company_name"]]))
+                names = sorted({c["company_name"], *(c["names"] or [])})
                 # First run looks back a month; afterwards a few days is enough.
                 timespan = "3d" if c["has_news"] else "1m"
                 try:
@@ -134,10 +134,11 @@ class NewsCollector:
                     continue
                 for item in items:
                     result.items_seen += 1
-                    matches = matcher.match(item.headline)
-                    if not any(m.company_id == c["company_id"] for m in matches):
-                        matches.append(Match(c["company_id"], QUERY_ONLY_RELEVANCE, "query"))
-                    self._store(item, [m for m in matches if m.company_id in wanted], result)
+                    matches = [m for m in matcher.match(item.headline) if m.company_id in wanted]
+                    if not matches:
+                        result.unmatched_dropped += 1   # only mentioned in the body: too weak to keep
+                        continue
+                    self._store(item, matches, result)
 
         logger.info("news_collection_finished", extra={k: v for k, v in vars(result).items()})
         return result

@@ -15,17 +15,18 @@ T = TypeVar("T")
 
 class CallPolicy:
     """Waits at least `min_interval` seconds between calls and retries failures
-    with exponential back-off (1s, 2s, 4s...). A `ProviderError` raised inside the
+    with exponential back-off (backoff_base x 1, 2, 4...). A `ProviderError` raised inside the
     call is final (e.g. "symbol not found") and is not retried."""
 
     def __init__(
         self, source_code: str, min_interval: float = 1.0, max_attempts: int = 3,
-        sleep: Callable[[float], None] = time.sleep,
+        sleep: Callable[[float], None] = time.sleep, backoff_base: float = 1.0,
     ) -> None:
         self.source_code = source_code
         self.min_interval = min_interval
         self.max_attempts = max_attempts
         self._sleep = sleep
+        self.backoff_base = backoff_base
         self._last_call = 0.0
 
     def call(self, what: str, subject: str, fn: Callable[[], T]) -> T:
@@ -47,7 +48,7 @@ class CallPolicy:
                            "attempt": attempt, "error": str(exc)[:200]},
                 )
                 if attempt < self.max_attempts:
-                    self._sleep(2 ** (attempt - 1))
+                    self._sleep(self.backoff_base * 2 ** (attempt - 1))
         raise ProviderUnavailableError(
             f"{self.source_code} {what} for {subject} failed after {self.max_attempts} attempts"
         ) from last_error

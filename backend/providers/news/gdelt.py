@@ -26,11 +26,16 @@ API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 # GDELT titles come tokenised: "RIL , SAIL ( up 3 % )". Undo the extra spaces.
 _SPACE_BEFORE = re.compile(r"\s+([,.:;!?%)\]])")
 _SPACE_AFTER = re.compile(r"([(\[])\s+")
+_SPLIT_DECIMAL = re.compile(r"(\d)\. (\d)")                    # "1. 55" -> "1.55"
+_SPLIT_DOMAIN = re.compile(r"\. (com|in|org|net|co|news)\b")    # "Example. com" -> "Example.com"
 
 
 def tidy_title(title: str | None) -> str | None:
     cleaned = clean_text(title)
-    return _SPACE_AFTER.sub(r"\1", _SPACE_BEFORE.sub(r"\1", cleaned)) if cleaned else None
+    if not cleaned:
+        return None
+    cleaned = _SPACE_AFTER.sub(r"\1", _SPACE_BEFORE.sub(r"\1", cleaned))
+    return _SPLIT_DOMAIN.sub(r".\1", _SPLIT_DECIMAL.sub(r"\1.\2", cleaned))
 MAX_RECORDS = 250
 
 
@@ -56,11 +61,14 @@ class GdeltNewsAdapter:
     source_code = "gdelt"
 
     def __init__(
-        self, client: httpx.Client | None = None, min_interval_seconds: float = 5.0, max_attempts: int = 3,
-        sleep: Callable[[float], None] = time.sleep,
+        self, client: httpx.Client | None = None, min_interval_seconds: float = 10.0, max_attempts: int = 3,
+        sleep: Callable[[float], None] = time.sleep, backoff_seconds: float = 20.0,
     ) -> None:
         self.client = client or httpx.Client(timeout=30, headers={"User-Agent": "stock-intelligence-platform"})
-        self.policy = CallPolicy(self.source_code, min_interval_seconds, max_attempts, sleep)
+        # GDELT asks for at most one request every 5 seconds and answers 429 when busy,
+        # so requests are spaced 10s apart and retries wait 20s, then 40s.
+        self.policy = CallPolicy(self.source_code, min_interval_seconds, max_attempts, sleep,
+                                 backoff_base=backoff_seconds)
 
     def _fetch(self, query: str, timespan: str, max_records: int) -> dict:
         response = self.client.get(API_URL, params={
