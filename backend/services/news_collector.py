@@ -35,6 +35,24 @@ logger = logging.getLogger(__name__)
 QUERY_ONLY_RELEVANCE = 0.4
 SYNDICATION_WINDOW = timedelta(days=2)
 DOCUMENT_FEEDS = {"bse_financial_results": "quarterly_results", "bse_annual_reports": "annual_report"}
+# Announcement subjects that are worth keeping as documents, checked in order.
+ANNOUNCEMENT_DOCUMENTS = (
+    ("financial result", "quarterly_results"),
+    ("annual report", "annual_report"),
+    ("investor presentation", "investor_presentation"),
+    ("transcript", "earnings_transcript"),
+)
+
+
+def document_type_for(item: NewsItem) -> str | None:
+    if item.source_code in DOCUMENT_FEEDS:
+        return DOCUMENT_FEEDS[item.source_code]
+    if item.kind == "exchange_filing" and ".pdf" in item.url.lower():
+        subject = item.headline.lower()
+        for keyword, doc_type in ANNOUNCEMENT_DOCUMENTS:
+            if keyword in subject:
+                return doc_type
+    return None
 
 
 @dataclass
@@ -94,13 +112,15 @@ class NewsCollector:
                     continue
                 for item in items:
                     result.items_seen += 1
-                    matches = [m for m in matcher.match(item.headline, item.snippet) if m.company_id in wanted]
+                    matches = [m for m in matcher.match(item.headline, item.snippet, item.exchange_code)
+                               if m.company_id in wanted]
                     if not matches:
                         result.unmatched_dropped += 1
                         continue
                     self._store(item, matches, result)
-                    if feed.source_code in DOCUMENT_FEEDS:
-                        self._register_document(item, matches, DOCUMENT_FEEDS[feed.source_code], result)
+                    doc_type = document_type_for(item)
+                    if doc_type:
+                        self._register_document(item, matches, doc_type, result)
 
         if self.gdelt:
             for c in companies:

@@ -11,6 +11,7 @@ Docs: https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
@@ -22,6 +23,14 @@ from backend.providers.news.base import NewsItem, clean_text
 from backend.providers.retry import CallPolicy
 
 API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+# GDELT titles come tokenised: "RIL , SAIL ( up 3 % )". Undo the extra spaces.
+_SPACE_BEFORE = re.compile(r"\s+([,.:;!?%)\]])")
+_SPACE_AFTER = re.compile(r"([(\[])\s+")
+
+
+def tidy_title(title: str | None) -> str | None:
+    cleaned = clean_text(title)
+    return _SPACE_AFTER.sub(r"\1", _SPACE_BEFORE.sub(r"\1", cleaned)) if cleaned else None
 MAX_RECORDS = 250
 
 
@@ -72,7 +81,7 @@ class GdeltNewsAdapter:
         payload = self.policy.call("search", query, lambda: self._fetch(query, timespan, max_records))
         items = []
         for art in payload.get("articles", []) or []:
-            url, title = art.get("url"), clean_text(art.get("title"))
+            url, title = art.get("url"), tidy_title(art.get("title"))
             if not url or not title:
                 continue
             items.append(NewsItem(

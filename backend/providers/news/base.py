@@ -29,6 +29,7 @@ class NewsItem:
     published_at: datetime | None = None
     language: str | None = None
     kind: FeedKind = "news"
+    exchange_code: str | None = None   # BSE scrip code, for exchange filings
 
 
 def canonical_url(url: str) -> str:

@@ -1,6 +1,7 @@
 """Find which of our companies a headline or description is about.
 
 Rules, strongest first:
+- an exchange filing carrying the company's BSE scrip code   -> 1.0
 - the company's name or legal name in the headline           -> 1.0
 - another alias or its NSE symbol in the headline            -> 0.85
 - any of the above only in the description                   -> 0.6
@@ -45,7 +46,8 @@ def _alternation(terms: list[str], flags: int = 0) -> re.Pattern | None:
 
 class CompanyMatcher:
     def __init__(self, companies: list[dict]) -> None:
-        """companies: dicts with company_id, names, abbreviations, other_aliases, exclude."""
+        """companies: dicts with company_id, names, abbreviations, other_aliases, exclude, bse_codes."""
+        self._codes = {code: c["company_id"] for c in companies for code in c.get("bse_codes", [])}
         self._patterns = []
         for c in companies:
             alias_parts = [p for p in (
@@ -66,6 +68,9 @@ class CompanyMatcher:
         rows = conn.execute(text(
             """
             select c.company_id, c.news_exclude_phrases,
+                   (select array_agg(l.exchange_code) from app.company_listings l
+                     where l.company_id = c.company_id and l.exchange = 'BSE'
+                       and l.exchange_code is not null and l.is_active) as bse_codes,
                    array_agg(a.alias) filter (where a.alias_type in ('name', 'legal_name', 'former_name')) as names,
                    array_agg(a.alias) filter (where a.alias_type in ('abbreviation', 'symbol')) as abbreviations
             from app.companies c
@@ -84,10 +89,15 @@ class CompanyMatcher:
             abbreviations = [a for a in (r["abbreviations"] or []) if len(a) >= 3]
             abbreviations += [a.upper() for a in abbreviations]   # "Infy" and "INFY"
             companies.append({"company_id": r["company_id"], "names": full, "other_aliases": single,
-                              "abbreviations": abbreviations, "exclude": list(r["news_exclude_phrases"] or [])})
+                              "abbreviations": abbreviations, "exclude": list(r["news_exclude_phrases"] or []),
+                              "bse_codes": list(r["bse_codes"] or [])})
         return cls(companies)
 
-    def match(self, headline: str, snippet: str | None = None) -> list[Match]:
+    def match(self, headline: str, snippet: str | None = None, exchange_code: str | None = None) -> list[Match]:
+        if exchange_code is not None:
+            # A filing names its company exactly; never guess from the text.
+            company_id = self._codes.get(exchange_code)
+            return [Match(company_id, HEADLINE_NAME, "headline")] if company_id else []
         results = []
         for p in self._patterns:
             h = p.exclude.sub(" ", headline) if p.exclude else headline
