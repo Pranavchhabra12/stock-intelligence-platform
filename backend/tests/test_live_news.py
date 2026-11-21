@@ -31,5 +31,10 @@ def test_feed_is_reachable_and_parses(feed) -> None:  # noqa: ANN001
         pytest.fail(f"{feed.source_code}: {exc}")
     print(f"\n{feed.source_code}: {len(items)} items")
     for i in items[:3]:
-        print(f"  {i.published_at} | {i.headline[:100]} | {i.url[:120]}")
-    assert items
+        print(f"  {i.published_at} | {i.headline[:100]} | {(i.snippet or '')[:120]} | {i.url[:120]}")
+    if feed.kind == "exchange_filing":
+        # Show the raw shape of exchange feeds; they can be empty outside trading days.
+        raw = RssAdapter()._get(feed)
+        print("  RAW:", raw[:1500].decode("utf-8", "replace").replace("\n", " "))
+    else:
+        assert items
