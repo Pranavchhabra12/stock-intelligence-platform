@@ -26,3 +26,9 @@ Short records of architectural choices and why they were made. The finalised sta
 | 20 | Derived metrics blocked by a database trigger | Market cap, P/E and the like are always computed from stored values, never stored |
 | 21 | Live provider tests run in a separate, non-blocking workflow | External outages shouldn't fail normal CI, but breakages still get noticed daily |
 | 22 | A thin answer counts as missing data | Yahoo returned one day of BSE history for four companies; the fallback now needs ≥80% of weekdays, and the collector fills gaps at the front of a listing's history |
+| 23 | Store headlines and links, never article bodies | Respects publishers' terms; the headline is enough to link and score an article, and readers click through |
+| 24 | Search results must name the company in the headline | Search engines match the whole article; body-only mentions were mostly market round-ups and noise |
+| 25 | Google News search per company; GDELT best effort | GDELT refused GitHub's runner IPs even for a single request; Google News search RSS works from servers and is free |
+| 26 | BSE filings matched by scrip code | The code in each BSE item identifies the company exactly, so no name matching is needed |
+| 27 | Reports chunked by page, about 1,500 words each | Keeps chunks within AI context limits and lets answers cite page numbers |
+| 28 | Scanned PDFs marked `needs_ocr`, not OCR'd | OCR is slow and error-prone on free hosting; most listed companies publish text PDFs |

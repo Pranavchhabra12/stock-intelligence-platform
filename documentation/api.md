@@ -100,10 +100,28 @@ Returns daily OHLCV oldest first. Each row has a `source` (the provider that sup
 
 Periods newest first, labelled like `Q2 FY2027` or `FY2026`. Every reported metric appears in each period; ones the source did not report are `null`.
 
+### `GET /stocks/{ticker}/news`
+
+| Parameter | Notes |
+|---|---|
+| `limit` | 1–100, default 20 |
+| `min_relevance` | 0–1, default 0.5. Relevance is 1.0 when the headline names the company, 0.85 for a short name such as "Infosys" or "RIL", and 0.6 when only the feed's description mentions it |
+| `before` | Page cursor: pass `next_before` from the previous page |
+
+Articles come newest first. Each has its headline, link, publisher, published time, relevance, `source` (the feed or search that found it) and that source's attribution text. Article bodies are not stored.
+
+### `GET /stocks/{ticker}/reports`
+
+| Parameter | Notes |
+|---|---|
+| `document_type` | Optional: `annual_report`, `quarterly_results`, `investor_presentation`, `exchange_filing`, `earnings_transcript`, `other_disclosure` |
+
+Documents newest first, with `extraction_status` (`pending`, `extracted`, `needs_ocr` for scanned PDFs, `not_pdf`, `failed`), page count and how many text chunks are ready for analysis.
+
 ## Rate limiting
 
 `API_RATE_LIMIT_PER_MINUTE` requests per client IP per minute (default 60; `0` disables). In-memory, per process: fine for one small instance.
 
 ## Coming in later phases
 
-`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, `/news`, `/reports`, `/sentiment`, `/analysis`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
+`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, `/sentiment`, `/analysis`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
