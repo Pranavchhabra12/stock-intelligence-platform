@@ -1,0 +1,42 @@
+name: Probe IndianAPI
+on:
+  push:
+    branches: [indianapi-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch HDFC Bank and describe the response
+        env:
+          KEY: ${{ secrets.INDIANAPI_KEY }}
+        run: |
+          test -n "$KEY" || { echo "INDIANAPI_KEY is not set"; exit 1; }
+          curl -sS -o stock.json -w "status %{http_code}, %{size_download} bytes\n" \
+            -H "x-api-key: $KEY" "https://stock.indianapi.in/stock?name=HDFC%20Bank"
+          python3 - <<'PY'
+          import json
+          d = json.load(open("stock.json"))
+          def shape(x, depth=0, key=""):
+              pad = "  " * depth
+              if isinstance(x, dict):
+                  print(f"{pad}{key} {{{len(x)} keys}}")
+                  if depth < 3:
+                      for k, v in list(x.items())[:40]:
+                          shape(v, depth + 1, k)
+              elif isinstance(x, list):
+                  print(f"{pad}{key} [list of {len(x)}]")
+                  if x and depth < 3:
+                      shape(x[0], depth + 1, "[0]")
+              else:
+                  print(f"{pad}{key} = {str(x)[:80]!r}")
+          shape(d)
+          fin = d.get("financials") if isinstance(d, dict) else None
+          print("\n===== financials (first 2 periods, full) =====")
+          print(json.dumps(fin[:2] if isinstance(fin, list) else fin, indent=1)[:12000])
+          if isinstance(fin, list):
+              print("\n===== all periods =====")
+              for p in fin:
+                  print({k: v for k, v in p.items() if not isinstance(v, (dict, list))})
+          PY
