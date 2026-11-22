@@ -69,6 +69,17 @@
 
 **Phase 5 acceptance criteria (blueprint):** refresh on demand without blocking ✅ · job status visible ✅ · duplicate jobs prevented ✅ · scheduled runs automated ✅ · failures recorded, not hidden ✅
 
+## Phase 7: Website ✅
+
+- [x] Next.js app in `frontend/`: home, company page, "How it works", not-found and error pages
+- [x] Search with keyboard support; every tracked company with its latest close and a 30-day news-tone strip
+- [x] Company page: price and 52-week range, tone strip, price chart (1M to 5Y), key numbers with their basis, results table, annual-report summary with pages, news with tone filters, reports list, refresh with live step progress
+- [x] `GET /stocks` and `GET /stocks/{ticker}/summary` in the API
+- [x] Responsive down to phone width; keyboard focus, screen-reader text for charts, reduced motion respected; colour-blind-safe tone colours
+- [x] CI type-checks and builds the website
+
+**Phase 7 acceptance criteria (blueprint):** search and view a company ✅ · prices, financials, news, sentiment and AI summaries shown ✅ · sources and disclaimers visible ✅ · refresh from the page ✅ · works on mobile ✅
+
 ## Later phases
 
 See the project plan: automation (5), Power BI (6), frontend (7), testing and deployment (8).

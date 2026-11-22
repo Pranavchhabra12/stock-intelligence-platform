@@ -88,3 +88,29 @@ def test_financials_annual(client: TestClient, collected: None) -> None:
 def test_unknown_ticker_404s(client: TestClient) -> None:
     assert client.get("/stocks/NOSUCHCO/prices").status_code == 404
     assert client.get("/stocks/NOSUCHCO/financials").status_code == 404
+
+
+def test_summary(client: TestClient, collected: None) -> None:
+    body = client.get("/stocks/RELIANCE/summary").json()
+    assert body["listing"]["exchange"] == "NSE" and body["company_name"] == "Reliance Industries"
+    price = body["price"]
+    assert price["close"] > 0 and price["low_52w"] <= price["close"] <= price["high_52w"]
+    assert price["change"] == pytest.approx(price["close"] - price["previous_close"], abs=0.01)
+    metrics = {m["code"]: m for m in body["metrics"]}
+    assert metrics["pe_ratio"]["value"] == pytest.approx(price["close"] / 51.5, rel=1e-3)
+    assert metrics["pe_ratio"]["basis"] == "EPS FY2026"            # no quarterly EPS: the annual figure
+    assert metrics["market_cap"]["value"] is None and metrics["market_cap"]["note"]
+    assert {"roe", "dividend_yield", "revenue_growth_yoy", "eps_ttm"} <= set(metrics)
+    assert client.get("/stocks/NOPE/summary").status_code == 404
+
+
+def test_company_overview(client: TestClient, collected: None) -> None:
+    body = client.get("/stocks").json()
+    assert body["count"] == 5 and body["tone_days"] == 30
+    names = [c["company_name"] for c in body["companies"]]
+    assert names == sorted(names)
+    rel = next(c for c in body["companies"] if c["company_name"] == "Reliance Industries")
+    assert rel["exchange"] == "NSE" and rel["symbol"] == "RELIANCE" and rel["close"] > 0
+    assert rel["change_pct"] is not None
+    other = next(c for c in body["companies"] if c["company_name"] == "Infosys")
+    assert other["close"] is None and other["tone_30d"] == []   # nothing collected for it in this test

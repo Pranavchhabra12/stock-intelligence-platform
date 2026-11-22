@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -50,3 +50,27 @@ class CompanyDetail(BaseModel):
     updated_at: datetime
     listings: list[Listing]
     aliases: list[str]
+
+
+class ToneDay(BaseModel):
+    date: date
+    score: float = Field(..., ge=-1, le=1)
+    article_count: int
+
+
+class CompanyOverview(BaseModel):
+    company_id: UUID
+    company_name: str
+    sector: str | None = None
+    exchange: Exchange
+    symbol: str
+    trade_date: date | None = None
+    close: float | None = None
+    change_pct: float | None = None
+    tone_30d: list[ToneDay] = Field(default_factory=list, description="Daily news tone, oldest first")
+
+
+class OverviewResponse(BaseModel):
+    count: int
+    tone_days: int
+    companies: list[CompanyOverview]
