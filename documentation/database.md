@@ -45,11 +45,23 @@ Supabase PostgreSQL. Application tables live in the `app` schema; analytics view
 
 **Price adjustments:** Yahoo's prices are split-adjusted, so after a new split it rescales every earlier price. When the collector sees a new split or bonus, it re-fetches the listing's whole history so the stored series stays consistent.
 
+## Phase 3 tables
+
+| Table | Purpose | Key constraints |
+|---|---|---|
+| `news_articles` | One row per story: headline, link, publisher, times, the feed's short description | unique `url_hash` (SHA-256 of the canonical URL); `content_hash` of the normalised headline catches syndicated copies |
+| `article_companies` | Which companies an article is about | PK (article_id, company_id); `relevance_score` 0–1; `mention_type` (headline, snippet, query); `linked_by` (rule, ai, manual) |
+| `company_documents` | Reports and filings per company | unique (company_id, document_url); `document_type` and `extraction_status` checked; `file_sha256` for change detection |
+| `document_chunks` | Extracted text, about 1,500 words per chunk | unique (document_id, chunk_no); `page_from`/`page_to` so AI answers can cite pages; deleted with their document |
+
+`companies.news_exclude_phrases` lists look-alike names to ignore when matching (for HDFC Bank: "HDFC Life", "HDFC AMC" and so on).
+
+**Deduplication:** URLs are canonicalised (tracking parameters, fragments and trailing slashes removed) before hashing. If the same headline arrives under another URL within two days, the existing article gains the new company links instead of a second copy being stored.
+
 ## Planned tables
 
 | Phase | Tables |
 |---|---|
-| 3 | `news_articles` (unique url_hash), `article_companies`, `company_documents`, `document_chunks` |
 | 4 | `ai_analyses` (one per source × company × prompt version × model), `sentiment_history` (one per company × date × methodology version) |
 | 5 | `collection_jobs` (doubles as the job queue) |
 | 6 | `powerbi_refresh_queue` (optional), `analytics` views |

@@ -28,16 +28,24 @@
 - [x] CLI: `python -m backend.collect RELIANCE` / `--all`
 - [x] Offline tests for adapters, fallback, collector and API; live-data workflow
 - [x] Database ready on Supabase (migrations 0001–0007, seed loaded, security advisor clean)
-- [ ] Add the `DATABASE_URL` repository secret and run the **Collect market data** workflow
+- [x] Add the `DATABASE_URL` repository secret and run the **Collect market data** workflow
 
 **Phase 2 acceptance criteria (blueprint):** retrieve market data for a searched company ✅ · historical prices stored ✅ · duplicate price records prevented ✅ · source and timestamps retained ✅ · missing information handled safely ✅
 
-## Phase 3: News and reports
+## Phase 3: News and reports ✅
 
-- [ ] News adapters: GDELT, publisher RSS
-- [ ] Exchange announcements (BSE RSS)
-- [ ] Company documents and PDF text extraction
+- [x] Migration 0008: `news_articles`, `article_companies`, `company_documents`, `document_chunks`, per-company exclusion phrases
+- [x] News adapters: Economic Times and Mint RSS, Google News search, GDELT (best effort)
+- [x] Exchange announcements, results and annual reports from BSE RSS, matched by scrip code
+- [x] Company matcher with relevance scores and look-alike exclusions
+- [x] Deduplication by canonical URL and by headline within two days
+- [x] Company documents: add by URL, PDF download, hash check, text by page, chunking, scanned-PDF detection
+- [x] `GET /stocks/{ticker}/news` and `GET /stocks/{ticker}/reports`
+- [x] Workflows: daily news step, hourly feeds, manual "Add a company document"
+- [x] Verified on Supabase: about 190 articles linked across the five companies
+
+**Phase 3 acceptance criteria (blueprint):** news collected for a searched company ✅ · articles linked to the right company ✅ · duplicates prevented ✅ · sources and timestamps retained ✅ · reports stored with extracted text ✅
 
 ## Later phases
 
-See the project plan: news and reports (3), AI analysis (4), automation (5), Power BI (6), frontend (7), testing and deployment (8).
+See the project plan: AI analysis (4), automation (5), Power BI (6), frontend (7), testing and deployment (8).

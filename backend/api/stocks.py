@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -10,9 +10,11 @@ from sqlalchemy.engine import Connection
 
 from backend.database.connection import get_connection
 from backend.schemas.company import CompanyDetail, Exchange, SearchResponse
+from backend.schemas.content import NewsResponse, ReportsResponse
 from backend.schemas.errors import ErrorResponse
 from backend.schemas.market import FinancialsResponse, PriceHistoryResponse
 from backend.services.company_service import CompanyService
+from backend.services.content_query_service import ContentQueryService
 from backend.services.market_query_service import MarketQueryService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -76,3 +78,32 @@ def get_financials(
     Metrics the source did not report are `null`; nothing is estimated.
     """
     return MarketQueryService(conn).financials(ticker, period_type, limit)
+
+
+@router.get("/{ticker}/news", response_model=NewsResponse, responses=_ERRORS)
+def get_news(
+    conn: DbConnection,
+    ticker: Ticker,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    min_relevance: Annotated[float, Query(
+        ge=0, le=1, description="1.0 headline, 0.85 short name, 0.6 description only")] = 0.5,
+    before: Annotated[datetime | None, Query(description="Page cursor: `next_before` from the previous page")] = None,
+) -> NewsResponse:
+    """News and exchange announcements about a company, newest first.
+
+    Each item links to the original publisher; only the headline and the publisher's own
+    short description are stored.
+    """
+    return ContentQueryService(conn).news(ticker, limit, min_relevance, before)
+
+
+@router.get("/{ticker}/reports", response_model=ReportsResponse, responses=_ERRORS)
+def get_reports(
+    conn: DbConnection,
+    ticker: Ticker,
+    document_type: Annotated[
+        Literal["annual_report", "quarterly_results", "investor_presentation", "exchange_filing",
+                "earnings_transcript", "other_disclosure"] | None, Query()] = None,
+) -> ReportsResponse:
+    """Company documents (annual reports, results filings) and whether their text has been extracted."""
+    return ContentQueryService(conn).reports(ticker, document_type)

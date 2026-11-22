@@ -92,13 +92,15 @@ def upsert_company(conn: Connection, company: dict[str, Any], sources: dict[str,
         "sector": company.get("sector"),
         "industry": company.get("industry"),
         "website": company.get("website"),
+        "exclude": company.get("news_exclude_phrases", []),
     }
     if company_id is None:
         company_id = conn.execute(
             text(
                 """
-                insert into app.companies (company_name, legal_name, cin, sector, industry, website)
-                values (:name, :legal_name, :cin, :sector, :industry, :website)
+                insert into app.companies
+                  (company_name, legal_name, cin, sector, industry, website, news_exclude_phrases)
+                values (:name, :legal_name, :cin, :sector, :industry, :website, :exclude)
                 returning company_id
                 """
             ),
@@ -115,7 +117,8 @@ def upsert_company(conn: Connection, company: dict[str, Any], sources: dict[str,
                   cin = coalesce(:cin, cin),
                   sector = coalesce(:sector, sector),
                   industry = coalesce(:industry, industry),
-                  website = coalesce(:website, website)
+                  website = coalesce(:website, website),
+                  news_exclude_phrases = :exclude
                 where company_id = :id
                 """
             ),
