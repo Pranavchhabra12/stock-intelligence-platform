@@ -27,7 +27,7 @@ GitHub Actions (daily 19:30 IST, hourly feeds) ───────────
 | `DATABASE_URL` | Supabase **Session pooler** connection string with the password (secret) |
 | `GEMINI_API_KEY` | From Google AI Studio (secret) |
 | `INTERNAL_API_KEY` | A long random string, the same as on Vercel (secret) |
-| `APP_ENV`, `LOG_LEVEL`, `API_RATE_LIMIT_PER_MINUTE`, `DB_POOL_SIZE`, `PYTHON_VERSION` | `prod`, `INFO`, `60`, `3`, `3.12.8` |
+| `APP_ENV`, `LOG_LEVEL`, `API_RATE_LIMIT_PER_MINUTE`, `DB_POOL_SIZE`, `PYTHON_VERSION` | `prod`, `INFO`, `60`, `5`, `3.12.8` |
 
 **Vercel** (project root directory `frontend`):
 
