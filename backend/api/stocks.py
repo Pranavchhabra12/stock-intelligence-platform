@@ -12,14 +12,15 @@ from backend.api.jobs import JobServiceDep
 from backend.core.errors import NotFoundError
 from backend.database.connection import get_connection
 from backend.database.repositories import CompanyRepository
-from backend.schemas.company import CompanyDetail, Exchange, SearchResponse
+from backend.schemas.company import CompanyDetail, Exchange, OverviewResponse, SearchResponse
 from backend.schemas.content import AnalysisResponse, NewsResponse, ReportsResponse, SentimentResponse
 from backend.schemas.errors import ErrorResponse
 from backend.schemas.jobs import Job, JobListResponse, RefreshResponse
-from backend.schemas.market import FinancialsResponse, PriceHistoryResponse
+from backend.schemas.market import FinancialsResponse, PriceHistoryResponse, SummaryResponse
 from backend.services.company_service import CompanyService
 from backend.services.content_query_service import ContentQueryService
 from backend.services.market_query_service import MarketQueryService
+from backend.services.overview_service import OverviewService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -41,6 +42,12 @@ def _company_id(conn: Connection, ticker: str):  # noqa: ANN202
     if company_id is None:
         raise NotFoundError(f"No company found for ticker '{ticker}'.")
     return company_id, repo.get_company(company_id)["company_name"]
+
+
+@router.get("", response_model=OverviewResponse)
+def list_companies(conn: DbConnection) -> OverviewResponse:
+    """Every tracked company with its latest close, day change and 30 days of news tone."""
+    return OverviewService(conn).companies()
 
 
 @router.get("/search", response_model=SearchResponse, responses=_ERRORS)
@@ -171,3 +178,13 @@ def recent_jobs(
     company_id, name = _company_id(conn, ticker)
     jobs = [Job(**j) for j in service.recent(company_id, limit)]
     return JobListResponse(company_id=company_id, company_name=name, count=len(jobs), jobs=jobs)
+
+
+@router.get("/{ticker}/summary", response_model=SummaryResponse, responses=_ERRORS)
+def get_summary(conn: DbConnection, ticker: Ticker, exchange: ExchangeParam = None) -> SummaryResponse:
+    """Latest price, 52-week range and key ratios (market cap, P/E, P/B, dividend yield, ROE, growth).
+
+    Worked out on request from stored prices and reported financials; each value says
+    what it was based on, and missing ones say why.
+    """
+    return MarketQueryService(conn).summary(ticker, exchange)

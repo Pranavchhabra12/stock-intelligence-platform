@@ -40,3 +40,10 @@ Short records of architectural choices and why they were made. The finalised sta
 | 34 | FastAPI background tasks for refreshes, not a separate worker | One free Render service is enough for a demo; the jobs table keeps the state, and stuck jobs expire |
 | 35 | Cooldown and a cap on active jobs for the public refresh endpoint | The button needs no login, so it must not be able to drain free-tier API quotas |
 | 36 | `run_once` as the only scheduled entry point | GitHub Actions, APScheduler and manual runs all do exactly the same thing and leave the same job record |
+| 37 | Key ratios worked out on request, with their basis | They change with every price; "last 4 quarters" when all four are reported, otherwise the latest year, and a reason instead of a number when it can't be done honestly |
+| 38 | The browser calls the site's own `/api`, proxied to FastAPI | No CORS setup, and the API address is a single server-side setting |
+| 39 | Blue/orange for news tone, not green/red | Passes colour-blindness checks; green/red text is kept only for price moves, always with a sign and arrow |
+| 40 | Plain CSS with design tokens, no UI framework | A small site; one stylesheet keeps the look deliberate and the bundle small |
+| 41 | Clear one company's cache after its refresh, via a checked server action | Five-minute caching keeps the site fast; checking the job first means the cache can't be emptied at will |
+| 42 | Share images drawn from live data per company | A shared link is the main way people will see this project, so the preview should show the product |
+| 43 | Motion only where it has a job: feedback, state change, or one entrance | Taken from published animation guidance (Emil Kowalski); numbers people are reading never move for style |

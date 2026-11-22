@@ -37,6 +37,16 @@ All errors share one shape:
 
 Returns 503 if the database is unreachable. Not rate limited.
 
+### `GET /stocks`
+
+Every tracked company, alphabetically: primary listing, latest close and its date, the day's change in percent, and `tone_30d`, the daily news tone for the last 30 days (oldest first; days without rated news are left out).
+
+### `GET /stocks/{ticker}/summary`
+
+The latest close with the previous close, change and 52-week high and low, plus key numbers worked out from stored data: market cap, P/E, P/B, dividend yield, ROE, 12-month EPS, revenue and profit, and year-on-year revenue and profit growth.
+
+Each metric has `value`, `unit` (`INR`, `INR_PER_SHARE`, `RATIO` or `PERCENT`) and `basis`, which says what it was worked out from: the last four quarters when all four are reported, otherwise the latest full year. When a value can't be worked out honestly it is `null` and `note` says why (for example "not meaningful (loss-making)").
+
 ### `GET /stocks/search`
 
 | Parameter | Type | Notes |
