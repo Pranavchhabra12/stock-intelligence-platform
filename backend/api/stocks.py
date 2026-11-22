@@ -1,4 +1,4 @@
-"""Stock and company endpoints: search, details, prices and financials."""
+"""Stock and company endpoints: search, details, prices, financials, news, reports and AI analysis."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sqlalchemy.engine import Connection
 
 from backend.database.connection import get_connection
 from backend.schemas.company import CompanyDetail, Exchange, SearchResponse
-from backend.schemas.content import NewsResponse, ReportsResponse
+from backend.schemas.content import AnalysisResponse, NewsResponse, ReportsResponse, SentimentResponse
 from backend.schemas.errors import ErrorResponse
 from backend.schemas.market import FinancialsResponse, PriceHistoryResponse
 from backend.services.company_service import CompanyService
@@ -107,3 +107,23 @@ def get_reports(
 ) -> ReportsResponse:
     """Company documents (annual reports, results filings) and whether their text has been extracted."""
     return ContentQueryService(conn).reports(ticker, document_type)
+
+
+@router.get("/{ticker}/sentiment", response_model=SentimentResponse, responses=_ERRORS)
+def get_sentiment(
+    conn: DbConnection,
+    ticker: Ticker,
+    days: Annotated[int, Query(ge=7, le=90)] = 30,
+) -> SentimentResponse:
+    """Daily news sentiment for a company (AI-rated), oldest first.
+
+    Each finished day is scored once from the articles published that day (India time)
+    and never changed afterwards. Sentiment describes news tone, not future prices.
+    """
+    return ContentQueryService(conn).sentiment(ticker, days)
+
+
+@router.get("/{ticker}/analysis", response_model=AnalysisResponse, responses=_ERRORS)
+def get_analysis(conn: DbConnection, ticker: Ticker) -> AnalysisResponse:
+    """AI summaries of the company's reports: key points and risks, each citing report pages."""
+    return ContentQueryService(conn).analysis(ticker)
