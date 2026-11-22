@@ -182,6 +182,7 @@ export interface JobStep {
 
 export interface Job {
   job_id: string;
+  company_id: string | null;
   job_type: string;
   status: "pending" | "running" | "completed" | "completed_with_errors" | "failed";
   steps: Record<string, JobStep>;
@@ -207,9 +208,13 @@ export class ApiError extends Error {
 
 const SERVER_API = (process.env.API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
-/** Server-side fetch, cached for five minutes. */
-export async function api<T>(path: string, revalidate = 300): Promise<T> {
-  const res = await fetch(`${SERVER_API}${path}`, { next: { revalidate } });
+/** Cache tag for everything shown about one company; cleared after a refresh finishes. */
+export const companyTag = (ticker: string) => `stock:${ticker.toUpperCase()}`;
+export const OVERVIEW_TAG = "overview";
+
+/** Server-side fetch, cached for five minutes (or until its tag is cleared). */
+export async function api<T>(path: string, revalidate = 300, tags: string[] = []): Promise<T> {
+  const res = await fetch(`${SERVER_API}${path}`, { next: { revalidate, tags } });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new ApiError(res.status, body?.error?.message ?? `Request failed (${res.status})`);
@@ -218,9 +223,9 @@ export async function api<T>(path: string, revalidate = 300): Promise<T> {
 }
 
 /** The same call, but a failure becomes null so one broken section can't break the page. */
-export async function maybe<T>(path: string, revalidate = 300): Promise<T | null> {
+export async function maybe<T>(path: string, revalidate = 300, tags: string[] = []): Promise<T | null> {
   try {
-    return await api<T>(path, revalidate);
+    return await api<T>(path, revalidate, tags);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) throw err;
     return null;

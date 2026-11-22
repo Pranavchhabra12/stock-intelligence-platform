@@ -9,9 +9,17 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
+import NavLinks from "@/components/NavLinks";
+import ScrollState from "@/components/ScrollState";
 import SearchBox from "@/components/SearchBox";
 
+const siteUrl = process.env.SITE_URL
+  ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  openGraph: { type: "website", siteName: "Stock Intelligence", locale: "en_IN" },
+  twitter: { card: "summary_large_image" },
   title: { default: "Stock Intelligence", template: "%s | Stock Intelligence" },
   description: "Prices, results, filings and AI-rated news tone for companies listed on NSE and BSE.",
 };
@@ -22,17 +30,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-IN">
       <body>
+        <a className="skip-link" href="#main">Skip to content</a>
+        <ScrollState />
         <header className="site-header">
           <div className="wrap">
             <Link href="/" className="wordmark">Stock <span>Intelligence</span></Link>
             <div className="header-search"><SearchBox compact /></div>
-            <nav aria-label="Site">
-              <Link href="/">Companies</Link>
-              <Link href="/about">How it works</Link>
-            </nav>
+            <NavLinks />
           </div>
         </header>
-        <main className="wrap">{children}</main>
+        <main className="wrap" id="main" tabIndex={-1}>{children}</main>
         <footer className="site-footer">
           <div className="wrap">
             <p>

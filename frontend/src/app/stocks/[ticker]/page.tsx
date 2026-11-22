@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import FinancialsTable from "@/components/FinancialsTable";
+import Flash from "@/components/Flash";
 import NewsList from "@/components/NewsList";
 import PriceChart from "@/components/PriceChart";
+import QuoteBar from "@/components/QuoteBar";
 import RefreshPanel from "@/components/RefreshPanel";
 import ToneLegend from "@/components/ToneLegend";
 import ToneStrip from "@/components/ToneStrip";
 import { toneWord } from "@/lib/tone";
 import {
   type Analysis, ApiError, type CompanyDetail, type Financials, type JobList, maybe, type News, type Prices,
-  type Reports, type SentimentHistory, type Summary,
+  type Reports, type SentimentHistory, type Summary, companyTag,
 } from "@/lib/api";
 import { fmtDate, metricValue, rupees, signed } from "@/lib/format";
 
@@ -30,18 +32,19 @@ const KEY_ORDER = ["market_cap", "pe_ratio", "pb_ratio", "dividend_yield", "roe"
 
 async function load(ticker: string) {
   const t = encodeURIComponent(ticker);
+  const tag = [companyTag(ticker)];
   try {
     const company = await maybe<CompanyDetail>(`/stocks/${t}`, 3600);
     if (!company) return null;
     const [summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs] = await Promise.all([
-      maybe<Summary>(`/stocks/${t}/summary`),
-      maybe<Prices>(`/stocks/${t}/prices`),
-      maybe<Financials>(`/stocks/${t}/financials?period_type=quarterly&limit=8`),
-      maybe<Financials>(`/stocks/${t}/financials?period_type=annual&limit=5`),
-      maybe<News>(`/stocks/${t}/news?limit=20`, 120),
-      maybe<SentimentHistory>(`/stocks/${t}/sentiment?days=30`),
-      maybe<Analysis>(`/stocks/${t}/analysis`),
-      maybe<Reports>(`/stocks/${t}/reports`),
+      maybe<Summary>(`/stocks/${t}/summary`, 300, tag),
+      maybe<Prices>(`/stocks/${t}/prices`, 300, tag),
+      maybe<Financials>(`/stocks/${t}/financials?period_type=quarterly&limit=8`, 300, tag),
+      maybe<Financials>(`/stocks/${t}/financials?period_type=annual&limit=5`, 300, tag),
+      maybe<News>(`/stocks/${t}/news?limit=20`, 120, tag),
+      maybe<SentimentHistory>(`/stocks/${t}/sentiment?days=30`, 300, tag),
+      maybe<Analysis>(`/stocks/${t}/analysis`, 300, tag),
+      maybe<Reports>(`/stocks/${t}/reports`, 300, tag),
       maybe<JobList>(`/stocks/${t}/jobs?limit=1`, 0),
     ]);
     return { company, summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs };
@@ -80,12 +83,17 @@ export default async function CompanyPage({ params }: Params) {
   const range = price?.high_52w && price.low_52w && price.high_52w > price.low_52w
     ? ((price.close - price.low_52w) / (price.high_52w - price.low_52w)) * 100 : null;
   const report = analysis?.reports[0];
+  const moveText = price?.change != null && price.change_pct != null
+    ? `${price.change >= 0 ? "▲" : "▼"} ${signed(price.change)} (${signed(price.change_pct)}%)` : null;
+  const moveClass = price?.change == null ? "" : price.change >= 0 ? "up" : "down";
   const totals = sentiment?.history.reduce((acc, d) => ({
     pos: acc.pos + d.positive, neu: acc.neu + d.neutral, neg: acc.neg + d.negative,
   }), { pos: 0, neu: 0, neg: 0 });
 
   return (
     <>
+      <QuoteBar name={company.company_name} price={price ? rupees(price.close) : null} move={moveText}
+                moveClass={moveClass} />
       <section className="company-head">
         <div>
           <div className="company-title">
@@ -104,14 +112,14 @@ export default async function CompanyPage({ params }: Params) {
         </div>
 
         {price ? (
-          <div className="quote">
+          <div className="quote" id="quote-anchor">
             <div>
-              <p className="num last">{rupees(price.close)}</p>
+              <p className="num last"><Flash value={rupees(price.close)} /></p>
               <p className="when">Close on {fmtDate(price.trade_date)}, {summary?.listing.exchange}</p>
             </div>
-            {price.change != null && price.change_pct != null && (
-              <p className={`num move ${price.change >= 0 ? "up" : "down"}`}>
-                {price.change >= 0 ? "▲" : "▼"} {signed(price.change)} ({signed(price.change_pct)}%)
+            {moveText && (
+              <p className={`num move ${moveClass}`}>
+                <Flash value={moveText} />
                 <span className="visually-hidden"> from the previous close</span>
               </p>
             )}
@@ -129,7 +137,8 @@ export default async function CompanyPage({ params }: Params) {
             )}
           </div>
         ) : (
-          <p className="empty-state">No prices stored for this company yet. Use “Refresh this company” to fetch them.</p>
+          <p className="empty-state" id="quote-anchor">No prices stored for this company yet. Use “Refresh this company” to
+            fetch them.</p>
         )}
 
         <div className="tone-block">
@@ -148,6 +157,13 @@ export default async function CompanyPage({ params }: Params) {
           <ToneStrip large history={sentiment?.history ?? []} label={`${company.company_name}: news tone for each of the last 30 days`} />
           <ToneLegend />
         </div>
+
+        <nav className="jump" aria-label="Jump to a section">
+          <a href="#price-h">Price</a>
+          <a href="#fin-h">Results</a>
+          <a href="#report-h">Report</a>
+          <a href="#news-h">News</a>
+        </nav>
       </section>
 
       <div className="layout">
@@ -205,7 +221,7 @@ export default async function CompanyPage({ params }: Params) {
                 {KEY_ORDER.map((code) => metrics.get(code)).filter(Boolean).map((m) => (
                   <div key={m!.code}>
                     <dt>{m!.label}</dt>
-                    <dd className="num">{metricValue(m!.unit, m!.value)}</dd>
+                    <dd className="num"><Flash value={metricValue(m!.unit, m!.value)} /></dd>
                     {(m!.basis || m!.note) && (
                       <span className="basis">{m!.value == null ? m!.note : `Based on ${m!.basis}`}</span>
                     )}
