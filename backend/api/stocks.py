@@ -15,7 +15,14 @@ from backend.core.config import get_settings
 from backend.core.errors import NotFoundError
 from backend.database.connection import get_connection, get_engine
 from backend.database.repositories import CompanyRepository
-from backend.schemas.company import CompanyDetail, Exchange, OverviewResponse, SearchResponse, TrackResponse
+from backend.schemas.company import (
+    CompanyDetail,
+    Exchange,
+    OverviewResponse,
+    SearchResponse,
+    TrackResponse,
+    UntrackResponse,
+)
 from backend.schemas.content import AnalysisResponse, NewsResponse, ReportsResponse, SentimentResponse
 from backend.schemas.errors import ErrorResponse
 from backend.schemas.jobs import Job, JobListResponse, RefreshResponse
@@ -272,3 +279,19 @@ def track_company(
             background.add_task(service.run, job_id)
     return TrackResponse(company_id=company_id, company_name=name, is_tracked=True, created=created,
                          tracked_count=count, cap=settings.max_tracked_companies, job_id=job_id)
+
+
+@router.delete("/{ticker}/track", response_model=UntrackResponse, responses={
+    **_ERRORS, 409: {"model": ErrorResponse, "description": "One of the starting companies, which stay in Power BI"}})
+def untrack_company(conn: DbConnection, ticker: Ticker) -> UntrackResponse:
+    """Remove a company from Power BI: it stops being collected daily and analysed by AI.
+
+    Its stored prices, results, news and AI ratings are kept, so adding it back later carries on
+    from there. The starting companies can't be removed.
+    """
+    company_id, name = _company_id(conn, ticker)
+    conn.rollback()
+    settings = get_settings()
+    removed, count = TrackingService(get_engine(), settings.max_tracked_companies).untrack(company_id)
+    return UntrackResponse(company_id=company_id, company_name=name, is_tracked=False, removed=removed,
+                           tracked_count=count, cap=settings.max_tracked_companies)

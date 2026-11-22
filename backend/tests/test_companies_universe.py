@@ -116,6 +116,31 @@ def test_track_api_starts_a_full_refresh(client: TestClient, universe: None, fak
     assert client.post("/stocks/NOPE/track").status_code == 404
 
 
+def test_remove_from_power_bi(client: TestClient, universe: None, fake_jobs: FakeSteps) -> None:
+    client.post("/stocks/ZZTEST8/track")
+    page = client.get("/stocks/ZZTEST8/page").json()
+    assert page["company"]["can_remove"] is True and page["tracking"]["tracked_count"] == 6
+
+    gone = client.delete("/stocks/ZZTEST8/track")
+    assert gone.status_code == 200
+    assert gone.json() | {"company_id": None} == {"company_id": None, "company_name": "Zeta Test Industries 8",
+                                                   "is_tracked": False, "removed": True, "tracked_count": 5, "cap": 25}
+    company = client.get("/stocks/ZZTEST8").json()
+    assert company["is_tracked"] is False and company["can_remove"] is False and company["untracked_at"]
+    assert client.delete("/stocks/ZZTEST8/track").json()["removed"] is False      # already out
+    names = [c["company_name"] for c in client.get("/stocks").json()["companies"]]
+    assert "Zeta Test Industries 8" not in names
+
+    # The starting companies stay, so the dashboard is never left empty.
+    assert client.get("/stocks/INFY").json()["can_remove"] is False
+    kept = client.delete("/stocks/INFY/track")
+    assert kept.status_code == 409 and kept.json()["error"]["code"] == "protected"
+    assert client.get("/stocks/INFY").json()["is_tracked"] is True
+    # Adding it back works, and clears the removal time.
+    assert client.post("/stocks/ZZTEST8/track").json()["created"] is True
+    assert client.get("/stocks/ZZTEST8").json()["untracked_at"] is None
+
+
 def test_company_page_in_one_request(client: TestClient, universe: None) -> None:
     page = client.get("/stocks/INFY/page").json()
     assert page["company"]["company_name"] == "Infosys" and page["company"]["is_tracked"] is True

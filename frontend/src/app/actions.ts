@@ -35,3 +35,15 @@ export async function showTrackedCompany(ticker: string): Promise<boolean> {
   updateTag(OVERVIEW_TAG);
   return true;
 }
+
+/** After a company is removed from Power BI, take it off the home page and update its page.
+ * Only for a company removed in the last ten minutes, so it can't be used to empty the cache. */
+export async function showRemovedCompany(ticker: string): Promise<boolean> {
+  if (!TICKER.test(ticker)) return false;
+  const company = await api<CompanyDetail>(`/stocks/${encodeURIComponent(ticker)}`, 0).catch(() => null);
+  if (!company || company.is_tracked || !company.untracked_at) return false;
+  if (Date.now() - Date.parse(company.untracked_at) > 10 * 60 * 1000) return false;
+  updateTag(companyTag(ticker));
+  updateTag(OVERVIEW_TAG);
+  return true;
+}

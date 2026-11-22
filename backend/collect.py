@@ -18,7 +18,7 @@ from backend.core.config import get_settings
 from backend.core.logging import configure_logging
 from backend.database.connection import get_engine
 from backend.database.repositories import CompanyRepository
-from backend.providers.market_data import build_market_data_provider
+from backend.providers.market_data import provider_from_settings
 from backend.services.market_data import MarketDataCollector
 
 
@@ -47,8 +47,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 1
                 company_ids.append(cid)
 
-    eodhd_key = settings.eodhd_api_key.get_secret_value() if settings.eodhd_api_key else None
-    provider = build_market_data_provider(settings.market_data_provider_codes, eodhd_key)
+    provider = provider_from_settings(settings)
     collector = MarketDataCollector(engine, provider, backfill_years=settings.price_backfill_years)
     ok = True
     for cid in company_ids:

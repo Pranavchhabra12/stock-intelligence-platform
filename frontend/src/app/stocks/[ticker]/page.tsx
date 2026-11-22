@@ -96,8 +96,8 @@ export default async function CompanyPage({ params }: Params) {
                 </span>
               ))}
             </div>
-            <TrackButton ticker={ticker} tracked={company.is_tracked} count={tracking.tracked_count}
-                         cap={tracking.cap} />
+            <TrackButton ticker={ticker} name={company.company_name} tracked={company.is_tracked}
+                         canRemove={company.can_remove} count={tracking.tracked_count} cap={tracking.cap} />
           </div>
           {(company.sector || company.industry) && (
             <p className="company-sub">{[company.sector, company.industry].filter(Boolean).join(", ")}</p>

@@ -28,6 +28,7 @@ def facts(**over) -> dict:  # noqa: ANN003
         "latest_filing_at": NOW - timedelta(hours=5), "latest_ai_at": NOW - timedelta(hours=2),
         "ai_rejected_7d": 0, "ai_saved_7d": 250, "latest_tone_day": date(2026, 11, 21), "documents_failed": 0,
         "fallback_rows_30d": 0,
+        "results_fetch": {"last_success": NOW - timedelta(days=3), "failing": 0, "companies": 5},
         "jobs": {"scheduled_run": {"status": "completed", "finished_at": NOW - timedelta(hours=10), "error": None},
                  "feeds_run": {"status": "completed", "finished_at": NOW - timedelta(minutes=50), "error": None}},
         "last_ok": {"scheduled_run": NOW - timedelta(hours=10), "feeds_run": NOW - timedelta(minutes=50)},
@@ -69,3 +70,13 @@ def test_status_endpoint(client: TestClient, engine: Engine) -> None:
     assert {"Prices and results", "News", "Exchange filings (BSE)", "AI (Gemini)"} <= set(names)
     assert body["companies"]["tracked"] == 5 and body["companies"]["cap"] == 25
     assert body["database_ms"] is not None
+
+
+def test_results_check_appears_with_an_indianapi_key() -> None:
+    settings = Settings(_env_file=None, database_url="postgresql://x/y", gemini_api_key="k", indianapi_key="k")
+    checks = {c.name: c for c in StatusService(None, settings, now=NOW)._checks(facts())}
+    results = checks["Company results (IndianAPI)"]
+    assert results.status == "ok" and "up to date for 5 companies" in results.detail
+    failing = facts(results_fetch={"last_success": NOW - timedelta(days=3), "failing": 2, "companies": 4})
+    assert {c.name: c for c in StatusService(None, settings, now=NOW)._checks(failing)}[
+        "Company results (IndianAPI)"].status == "warning"
