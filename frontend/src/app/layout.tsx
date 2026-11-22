@@ -11,7 +11,7 @@ import Link from "next/link";
 
 import NavLinks from "@/components/NavLinks";
 import ScrollState from "@/components/ScrollState";
-import SearchBox from "@/components/SearchBox";
+import HeaderSearch from "@/components/HeaderSearch";
 
 const siteUrl = process.env.SITE_URL
   ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="site-header">
           <div className="wrap">
             <Link href="/" className="wordmark">Stock <span>Intelligence</span></Link>
-            <div className="header-search"><SearchBox compact /></div>
+            <HeaderSearch />
             <NavLinks />
           </div>
         </header>

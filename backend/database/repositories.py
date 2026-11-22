@@ -36,13 +36,14 @@ _SEARCH_SQL = text(
            or a.alias_norm like :q_prefix
            or a.alias_norm operator(extensions.%) :q_norm
     )
-    select c.company_id, c.company_name, c.sector, c.industry,
+    select c.company_id, c.company_name, c.sector, c.industry, c.is_tracked,
            round(max(m.score)::numeric, 3)::float as score
     from matches m
     join app.companies c on c.company_id = m.company_id
     where c.is_active
-    group by c.company_id, c.company_name, c.sector, c.industry
-    order by score desc, c.company_name
+    group by c.company_id, c.company_name, c.sector, c.industry, c.is_tracked
+    -- tracked companies first among equally good matches
+    order by score desc, c.is_tracked desc, c.company_name
     limit :limit
     """
 )
@@ -106,7 +107,7 @@ class CompanyRepository:
             text(
                 """
                 select company_id, company_name, legal_name, cin, sector, industry,
-                       description, website, is_active, updated_at
+                       description, website, is_active, is_tracked, tracked_at, updated_at
                 from app.companies
                 where company_id = :id
                 """

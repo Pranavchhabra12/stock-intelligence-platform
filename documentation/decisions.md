@@ -50,3 +50,6 @@ Short records of architectural choices and why they were made. The finalised sta
 | 44 | API on Render's free plan, in Singapore | $0; it sleeps when idle, which suits a demo. Singapore is closest to Indian visitors and to the Sydney database |
 | 45 | A shared key lets the website's server skip the rate limit | All page renders come from Vercel's IPs; without it, ten visitors would look like one client |
 | 46 | Keep-awake ping only from 06:30 to 00:20 IST | Removes the one-minute wake-up while people visit; pinging 24/7 would use almost all of Render's 750 free hours, and running out pauses the API |
+| 47 | Every NSE company searchable; only tracked ones collected and analysed | Search feels complete, while daily jobs, news matching and AI stay small enough for free tiers |
+| 48 | Anyone can add a company to Power BI, capped at 25 | Lets visitors shape the dashboard without letting one person exhaust Gemini, Render or GitHub limits |
+| 49 | One request per company page | Eleven parallel calls queued on six database connections and took 35-40 s; one call over one connection takes a few seconds at worst |

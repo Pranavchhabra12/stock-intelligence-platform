@@ -18,6 +18,7 @@ export interface SearchResult {
   sector: string | null;
   industry: string | null;
   score: number;
+  is_tracked: boolean;
   listings: Listing[];
 }
 
@@ -29,6 +30,8 @@ export interface CompanyDetail {
   industry: string | null;
   description: string | null;
   website: string | null;
+  is_tracked: boolean;
+  tracked_at: string | null;
   listings: Listing[];
 }
 
@@ -198,6 +201,32 @@ export interface RefreshResponse extends Job {
 
 export interface JobList {
   jobs: Job[];
+}
+
+/** Everything a company page shows, from one API request. */
+export interface CompanyPage {
+  company: CompanyDetail;
+  summary: Summary | null;
+  prices: Prices | null;
+  quarterly: Financials | null;
+  annual: Financials | null;
+  news: News | null;
+  sentiment: SentimentHistory | null;
+  analysis: Analysis | null;
+  reports: Reports | null;
+  last_job: Job | null;
+  tracking: { tracked_count: number; cap: number };
+  missing: string[];
+}
+
+export interface TrackResponse {
+  company_id: string;
+  company_name: string;
+  is_tracked: boolean;
+  created: boolean;
+  tracked_count: number;
+  cap: number;
+  job_id: string | null;
 }
 
 export class ApiError extends Error {

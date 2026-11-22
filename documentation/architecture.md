@@ -57,6 +57,13 @@ Next.js (App Router) in `frontend/`, deployed separately from the API.
 - Key numbers come from `GET /stocks/{ticker}/summary`, worked out on request from stored prices and results (see decision 37).
 - News tone uses blue for positive and orange for negative, which stay distinct for colour-blind readers; price moves always carry a sign and an arrow as well as colour.
 
+## Companies: listed vs tracked
+
+- **Listed:** every NSE company, loaded monthly from NSE's official equity list (`backend.database.load_universe`, the "Load NSE company list" workflow). Searchable and viewable.
+- **Tracked:** companies in Power BI. Only these are collected in the daily and hourly runs, matched against news, analysed by AI and shown on the home page.
+- Opening an untracked company with no stored data starts a one-off refresh (prices, results and news; AI skipped). "Add to Power BI" (`POST /stocks/{ticker}/track`) tracks it and runs a full refresh. Anyone can add, up to `MAX_TRACKED_COMPANIES` (25); an advisory lock stops two visitors from both taking the last free place.
+- A company page is one request (`GET /stocks/{ticker}/page`), read over one database connection instead of eleven parallel calls. Home-page links don't prefetch, and the website's functions run in Singapore (`frontend/vercel.json`), next to the API.
+
 ## Pipelines (Phase 5)
 
 One pipeline (`backend/services/pipeline.py`), three triggers, every run recorded in `collection_jobs`:

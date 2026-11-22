@@ -83,6 +83,13 @@
 
 **Phase 7 acceptance criteria (blueprint):** search and view a company ✅ · prices, financials, news, sentiment and AI summaries shown ✅ · sources and disclaimers visible ✅ · refresh from the page ✅ · works on mobile ✅
 
+## After launch
+
+- [x] All NSE companies searchable (monthly load from NSE's equity list)
+- [x] "Add to Power BI" with a cap of 25; untracked companies fetched on first visit
+- [x] Company page in one request; no prefetching from the home page; website functions in Singapore
+- [x] One search box on the home page
+
 ## Later phases
 
 See the project plan: automation (5), Power BI (6), frontend (7), testing and deployment (8).
