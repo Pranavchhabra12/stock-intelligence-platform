@@ -35,8 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     configure_logging(settings.log_level)
     engine = get_engine()
-    # GDELT only in the daily run: it is slow and often refuses cloud servers.
-    service = JobService(engine, default_steps(engine, settings, use_gdelt=not args.feeds and not args.tickers),
+    # GDELT is off unless USE_GDELT=true: it refuses GitHub's servers every time, so in the
+    # scheduled runs it only ever added an error. Google News search covers each company instead.
+    use_gdelt = settings.use_gdelt and not args.feeds and not args.tickers
+    service = JobService(engine, default_steps(engine, settings, use_gdelt=use_gdelt),
                          JobLimits.from_settings(settings))
 
     if args.tickers:
