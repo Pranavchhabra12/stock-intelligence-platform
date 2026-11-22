@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { showFreshData } from "@/app/actions";
 import { ApiError, browserApi, type Job, type RefreshResponse } from "@/lib/api";
 import { ago } from "@/lib/format";
 
@@ -41,7 +42,8 @@ export default function RefreshPanel({ ticker, lastJob }: { ticker: string; last
             ? "The refresh failed. The page still shows the last stored data."
             : next.status === "completed_with_errors"
               ? "Updated, but some sources didn’t answer. Their data is unchanged."
-              : "Updated.");
+              : "Updated. Changed figures are highlighted.");
+          await showFreshData(ticker, next.job_id).catch(() => false);
           router.refresh();
         }
       } catch {
@@ -70,6 +72,7 @@ export default function RefreshPanel({ ticker, lastJob }: { ticker: string; last
       } else {
         setBusy(false);
         setMessage(`Already refreshed ${res.finished_at ? ago(res.finished_at) : "moments ago"}; showing that update.`);
+        if (await showFreshData(ticker, res.job_id).catch(() => false)) router.refresh();
       }
     } catch (err) {
       setBusy(false);

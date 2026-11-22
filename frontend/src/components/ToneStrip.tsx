@@ -25,19 +25,23 @@ function lastDays(n: number): string[] {
   return out;
 }
 
-export default function ToneStrip({ history, days = 30, large = false, label }: {
+export default function ToneStrip({ history, days = 30, large = false, label, decorative = false }: {
   history: ToneDay[];
   days?: number;
   large?: boolean;
   label: string;
+  /** inside a link: no focus stops or tooltip of its own */
+  decorative?: boolean;
 }) {
+  const interactive = large && !decorative;
   const byDate = new Map(history.map((d) => [d.date, d]));
   const dates = lastDays(days);
   const [tip, setTip] = useState<{ i: number; day: ToneDay } | null>(null);
 
   return (
     <div style={{ position: "relative" }}>
-      <div className={`tone-strip${large ? " large" : ""}`} role="list" aria-label={label}
+      <div className={`tone-strip${large ? " large" : ""}`} role={decorative ? undefined : "list"}
+           aria-label={decorative ? undefined : label} aria-hidden={decorative || undefined}
            onMouseLeave={() => setTip(null)}>
         {dates.map((date, i) => {
           const day = byDate.get(date);
@@ -48,12 +52,12 @@ export default function ToneStrip({ history, days = 30, large = false, label }: 
           return (
             <div
               key={date}
-              role="listitem"
+              role={decorative ? undefined : "listitem"}
               className={`day${large ? " reveal" : ""}`}
               style={{ ["--tone-fill" as string]: day ? toneFill(day.score) : undefined, ["--i" as string]: i }}
               data-has={day ? "true" : "false"}
-              tabIndex={day && large ? 0 : -1}
-              aria-label={text}
+              tabIndex={day && interactive ? 0 : -1}
+              aria-label={decorative ? undefined : text}
               onMouseEnter={() => day && setTip({ i, day })}
               onFocus={() => day && setTip({ i, day })}
               onBlur={() => setTip(null)}
@@ -61,7 +65,7 @@ export default function ToneStrip({ history, days = 30, large = false, label }: 
           );
         })}
       </div>
-      {tip && large && (
+      {tip && interactive && (
         <div className="tone-tip" role="status"
              style={{ left: `${((tip.i + 0.5) / dates.length) * 100}%` }}>
           <strong>{fmtDate(tip.day.date)}</strong>

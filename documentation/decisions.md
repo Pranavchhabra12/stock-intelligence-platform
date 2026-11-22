@@ -44,3 +44,6 @@ Short records of architectural choices and why they were made. The finalised sta
 | 38 | The browser calls the site's own `/api`, proxied to FastAPI | No CORS setup, and the API address is a single server-side setting |
 | 39 | Blue/orange for news tone, not green/red | Passes colour-blindness checks; green/red text is kept only for price moves, always with a sign and arrow |
 | 40 | Plain CSS with design tokens, no UI framework | A small site; one stylesheet keeps the look deliberate and the bundle small |
+| 41 | Clear one company's cache after its refresh, via a checked server action | Five-minute caching keeps the site fast; checking the job first means the cache can't be emptied at will |
+| 42 | Share images drawn from live data per company | A shared link is the main way people will see this project, so the preview should show the product |
+| 43 | Motion only where it has a job: feedback, state change, or one entrance | Taken from published animation guidance (Emil Kowalski); numbers people are reading never move for style |

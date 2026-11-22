@@ -51,6 +51,9 @@ Next.js (App Router) in `frontend/`, deployed separately from the API.
 - Server components fetch from the API with a five-minute cache, so most visits never wait on the backend. Every section loads independently: if one call fails, that section says so and the rest of the page still shows.
 - The browser only calls `/api/*` on the site itself; Next forwards those requests to the API (`API_URL`). No cross-origin requests, and the API address lives in one setting.
 - Interactive parts (search, chart ranges, the results toggle, news filters, the refresh button) are small client components. The refresh button starts a job and polls it, showing each step, then reloads the page data.
+- Pages are cached per company with a tag. When a refresh finishes, a server action checks the job (right company, really finished, in the last ten minutes) and clears just that company's tag, so the new figures show at once; values that changed glow once.
+- Each company page has its own share image (`opengraph-image`): name, price, day change and the 30-day tone strip, so a link posted on LinkedIn shows a real preview.
+- Motion follows a few rules: only `transform` and `opacity` move; interface motion stays under 300 ms with a strong ease-out; hover effects only on devices with a mouse; keyboard actions never animate; reduced motion keeps fades and drops movement. Data being read (chart, tables) never moves for style.
 - Key numbers come from `GET /stocks/{ticker}/summary`, worked out on request from stored prices and results (see decision 37).
 - News tone uses blue for positive and orange for negative, which stay distinct for colour-blind readers; price moves always carry a sign and an arrow as well as colour.
 

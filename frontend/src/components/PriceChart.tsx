@@ -87,6 +87,7 @@ export default function PriceChart({ ticker, initial }: { ticker: string; initia
         ) : rows.length === 0 ? (
           <p className="empty-state">{loading ? "Loading prices…" : "No prices stored yet. Refresh the company to fetch them."}</p>
         ) : (
+          <div className="chart-in" key={range}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="0" />
@@ -113,6 +114,7 @@ export default function PriceChart({ ticker, initial }: { ticker: string; initia
                     activeDot={{ r: 4, stroke: "#fff", strokeWidth: 2, fill: "#1f3a5f" }} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
+          </div>
         )}
       </div>
       {rows.length > 0 && (

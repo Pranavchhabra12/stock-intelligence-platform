@@ -76,6 +76,9 @@
 - [x] Company page: price and 52-week range, tone strip, price chart (1M to 5Y), key numbers with their basis, results table, annual-report summary with pages, news with tone filters, reports list, refresh with live step progress
 - [x] `GET /stocks` and `GET /stocks/{ticker}/summary` in the API
 - [x] Responsive down to phone width; keyboard focus, screen-reader text for charts, reduced motion respected; colour-blind-safe tone colours
+- [x] Polish pass: featured company in the home hero, translucent sticky header, a slim bar with the company and price on long pages, jump links on phones, 44px tap targets, pressed and hover states, skip link
+- [x] Share images for the home page and every company page (link previews on LinkedIn)
+- [x] After a refresh, that company's cached data is cleared and changed figures glow once
 - [x] CI type-checks and builds the website
 
 **Phase 7 acceptance criteria (blueprint):** search and view a company ✅ · prices, financials, news, sentiment and AI summaries shown ✅ · sources and disclaimers visible ✅ · refresh from the page ✅ · works on mobile ✅
