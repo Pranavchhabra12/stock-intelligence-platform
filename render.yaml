@@ -1,0 +1,30 @@
+# Render Blueprint for the API (the hosted demo was created with these same settings).
+# Secrets are marked sync: false, so Render asks for them instead of reading them from git.
+services:
+  - type: web
+    name: stock-intelligence-api
+    runtime: python
+    plan: free
+    region: singapore          # closest to Indian users and to the Supabase database (Sydney)
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: APP_ENV
+        value: prod
+      - key: LOG_LEVEL
+        value: INFO
+      - key: API_RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: DB_POOL_SIZE
+        value: "3"             # Supabase's free session pooler allows few connections
+      - key: DATABASE_URL      # Supabase session pooler string, with the password
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: INTERNAL_API_KEY  # same value as on Vercel, so page renders aren't rate limited as one client
+        sync: false
