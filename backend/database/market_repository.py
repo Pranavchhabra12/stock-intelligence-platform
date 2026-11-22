@@ -215,15 +215,22 @@ class MarketDataRepository:
         rows = self.conn.execute(
             text(
                 """
-                select p.period_id, p.period_type, p.period_end, p.fiscal_year, p.fiscal_quarter,
-                       p.consolidation, p.source_id,
-                       coalesce(jsonb_object_agg(m.metric_code, m.value)
-                                filter (where m.metric_code is not null), '{}'::jsonb) as metrics
-                from app.financial_periods p
-                left join app.financial_metrics m on m.period_id = p.period_id
-                where p.company_id = :cid and p.period_type = :ptype
-                group by p.period_id
-                order by p.period_end desc
+                -- One row per period. When two sources have it, IndianAPI wins (it reports
+                -- consolidated figures and has the recent quarters), then the newest fetch.
+                select * from (
+                  select distinct on (p.period_end)
+                         p.period_id, p.period_type, p.period_end, p.fiscal_year, p.fiscal_quarter,
+                         p.consolidation, p.source_id,
+                         coalesce(jsonb_object_agg(m.metric_code, m.value)
+                                  filter (where m.metric_code is not null), '{}'::jsonb) as metrics
+                  from app.financial_periods p
+                  join app.data_sources s on s.source_id = p.source_id
+                  left join app.financial_metrics m on m.period_id = p.period_id
+                  where p.company_id = :cid and p.period_type = :ptype
+                  group by p.period_id, s.source_code
+                  order by p.period_end desc, (s.source_code = 'indianapi') desc, p.fetched_at desc
+                ) one_per_period
+                order by period_end desc
                 limit :limit
                 """
             ),

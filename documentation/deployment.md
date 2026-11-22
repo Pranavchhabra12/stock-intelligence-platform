@@ -26,6 +26,7 @@ GitHub Actions (daily 19:30 IST, hourly feeds) ───────────
 |---|---|
 | `DATABASE_URL` | Supabase **Session pooler** connection string with the password (secret) |
 | `GEMINI_API_KEY` | From Google AI Studio (secret) |
+| `INDIANAPI_KEY` | From indianapi.in (secret, optional): company results. Free plan is 500 requests a month; results are fetched only when due |
 | `INTERNAL_API_KEY` | A long random string, the same as on Vercel (secret) |
 | `APP_ENV`, `LOG_LEVEL`, `API_RATE_LIMIT_PER_MINUTE`, `DB_POOL_SIZE`, `PYTHON_VERSION` | `prod`, `INFO`, `60`, `5`, `3.12.8` |
 
@@ -36,7 +37,7 @@ GitHub Actions (daily 19:30 IST, hourly feeds) ───────────
 | `API_URL` | The Render service URL |
 | `INTERNAL_API_KEY` | The same random string as on Render (sensitive) |
 
-**GitHub Actions secrets:** `DATABASE_URL`, `GEMINI_API_KEY`, and optionally `EODHD_API_KEY`.
+**GitHub Actions secrets:** `DATABASE_URL`, `GEMINI_API_KEY`, and optionally `INDIANAPI_KEY` and `EODHD_API_KEY`.
 
 ## Why the shared key
 

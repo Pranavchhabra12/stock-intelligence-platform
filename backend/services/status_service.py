@@ -109,6 +109,15 @@ class StatusService:
             "documents_failed": one("select count(*) from app.company_documents where extraction_status = 'failed'"),
             "jobs": jobs,
             "last_ok": last_ok,
+            "results_fetch": dict(conn.execute(text(
+                """
+                select max(f.last_success_at) as last_success,
+                       count(*) filter (where f.last_error is not null) as failing,
+                       count(*) filter (where f.last_success_at is not null) as companies
+                from app.provider_fetches f join app.data_sources s using (source_id)
+                join app.companies c using (company_id)
+                where s.source_code = 'indianapi' and c.is_tracked
+                """)).mappings().one()),
             "fallback_rows_30d": one(
                 "select count(*) from app.daily_prices p join app.data_sources s using (source_id) "
                 "where s.source_code <> 'yfinance' and p.trade_date > current_date - 30"),
@@ -137,6 +146,17 @@ class StatusService:
         filings = _fresh(f["latest_filing_at"], now, timedelta(days=4), timedelta(days=8))
         c.append(Check("Exchange filings (BSE)", filings,
                        f"Last filing collected {_age(f['latest_filing_at'], now)}.", f["latest_filing_at"]))
+
+        if self.settings.indianapi_key:
+            r = f["results_fetch"]
+            failing = r["failing"] or 0
+            status = "failed" if failing and not r["companies"] else "warning" if failing else \
+                _fresh(r["last_success"], now, timedelta(days=15), timedelta(days=30))
+            c.append(Check("Company results (IndianAPI)", status,
+                           f"Last fetched {_age(r['last_success'], now)}; up to date for {r['companies']} "
+                           f"compan{'y' if r['companies'] == 1 else 'ies'}"
+                           + (f", {failing} failing." if failing else ".")
+                           + " Checked every 2 weeks, every 2 days while results are due.", r["last_success"]))
 
         if not self.settings.gemini_api_key:
             c.append(Check("AI (Gemini)", "warning", "No Gemini key is set, so AI tone and summaries are paused."))

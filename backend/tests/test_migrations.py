@@ -18,6 +18,8 @@ APP_TABLES = {
     "ai_analyses", "sentiment_history",
     # Phase 5
     "collection_jobs",
+    # Phase 8: rationed providers (IndianAPI results)
+    "provider_fetches",
 }
 
 

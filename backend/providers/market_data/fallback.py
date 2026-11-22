@@ -8,7 +8,8 @@ the fullest answer is used. Every price row is stored with the source that
 actually supplied it.
 
 Corporate actions, financials and profile: the first provider that supports
-them and succeeds wins (today only Yahoo supports them).
+them and succeeds wins. Financials are asked of `results_first` providers (IndianAPI, when
+its key is set) before the rest.
 """
 
 from __future__ import annotations
@@ -62,14 +63,16 @@ class FallbackMarketDataProvider(MarketDataProvider):
     source_code = "fallback"
     price_basis = "unknown"
 
-    def __init__(self, providers: Sequence[MarketDataProvider]) -> None:
+    def __init__(self, providers: Sequence[MarketDataProvider],
+                 results_first: Sequence[MarketDataProvider] = ()) -> None:
         if not providers:
             raise ValueError("at least one provider is required")
         self.providers = list(providers)
+        self.results_first = list(results_first)
 
     @property
     def source_codes(self) -> list[str]:
-        return [p.source_code for p in self.providers]
+        return [p.source_code for p in self.results_first + self.providers]
 
     def get_price_history(self, listing: ListingKey, start: date, end: date) -> PriceHistory:
         errors: list[str] = []
@@ -97,23 +100,36 @@ class FallbackMarketDataProvider(MarketDataProvider):
             return best  # nobody was complete: use the fullest answer (may be empty, e.g. a holiday)
         raise ProviderError("all price providers failed: " + "; ".join(errors))
 
-    def first_available(self, what: str, fn: Callable[[MarketDataProvider], T]) -> tuple[str, T]:
-        """(source_code, result) from the first provider that supports `what` and succeeds."""
+    def first_available(
+        self, what: str, fn: Callable[[MarketDataProvider], T],
+        providers: Sequence[MarketDataProvider] | None = None, skip: frozenset[str] = frozenset(),
+        on_error: Callable[[str, str], None] | None = None,
+    ) -> tuple[str, T]:
+        """(source_code, result) from the first provider that supports `what` and succeeds.
+        `skip` leaves out providers by source code; `on_error(source, message)` hears each failure."""
         errors: list[str] = []
-        for provider in self.providers:
+        for provider in (self.providers if providers is None else providers):
+            if provider.source_code in skip:
+                continue
             try:
                 return provider.source_code, fn(provider)
             except NotSupportedError:
                 continue
             except ProviderError as exc:
                 errors.append(f"{provider.source_code}: {exc}")
+                if on_error:
+                    on_error(provider.source_code, str(exc))
         raise ProviderError(f"no provider could supply {what}: " + ("; ".join(errors) or "not supported"))
+
+    @property
+    def financial_providers(self) -> list[MarketDataProvider]:
+        return self.results_first + self.providers
 
     def get_corporate_actions(self, listing: ListingKey) -> list[CorporateAction]:
         return self.first_available("corporate actions", lambda p: p.get_corporate_actions(listing))[1]
 
     def get_financials(self, listing: ListingKey) -> list[FinancialPeriodData]:
-        return self.first_available("financials", lambda p: p.get_financials(listing))[1]
+        return self.first_available("financials", lambda p: p.get_financials(listing), self.financial_providers)[1]
 
     def get_profile(self, listing: ListingKey) -> CompanyProfile | None:
         return self.first_available("profile", lambda p: p.get_profile(listing))[1]
