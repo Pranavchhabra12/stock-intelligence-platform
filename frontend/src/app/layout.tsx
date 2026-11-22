@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   openGraph: { type: "website", siteName: "Stock Intelligence", locale: "en_IN" },
   twitter: { card: "summary_large_image" },
   title: { default: "Stock Intelligence", template: "%s | Stock Intelligence" },
-  description: "Prices, results, filings and AI-rated news tone for companies listed on NSE and BSE.",
+  description: "Prices, results and AI-rated news tone for companies listed on NSE and BSE.",
 };
 
 export const viewport: Viewport = { themeColor: "#ffffff", width: "device-width", initialScale: 1 };

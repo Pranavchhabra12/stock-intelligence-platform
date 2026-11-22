@@ -14,9 +14,9 @@ export default function About() {
 
       <h2>Where the data comes from</h2>
       <ul>
-        <li>Prices and results: Yahoo Finance, with Upstox and EODHD as fallbacks when it has no data. Each stored price records which source supplied it.</li>
+        <li>Prices: Yahoo Finance, with Upstox and EODHD as fallbacks when it has no data. Each stored price records which source supplied it.</li>
+        <li>Results: IndianAPI.in, with Yahoo Finance filling any period it doesn’t have.</li>
         <li>News: Economic Times and Mint feeds and Google News search. Only the headline and a link are kept; you read the story on the publisher’s site.</li>
-        <li>Filings: BSE’s official announcement, results and annual-report feeds.</li>
         <li>Reports: annual reports from the companies’ own investor pages.</li>
       </ul>
 

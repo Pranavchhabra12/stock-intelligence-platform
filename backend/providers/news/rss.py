@@ -49,12 +49,13 @@ DEFAULT_FEEDS: tuple[Feed, ...] = (
          "The Economic Times"),
     Feed("mint_markets_rss", "https://www.livemint.com/rss/markets", "Mint"),
     Feed("mint_companies_rss", "https://www.livemint.com/rss/companies", "Mint"),
-    Feed("bse_announcements", "https://beta.bseindia.com/data/xml/announcements.xml", "BSE", "exchange_filing"),
-    Feed("bse_financial_results", "https://www.bseindia.com/Data/XML/FinancialResultsFeed.aspx", "BSE",
-         "exchange_filing", "Financial results"),
-    Feed("bse_annual_reports", "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx", "BSE", "exchange_filing",
-         "Annual report"),
 )
+
+# BSE's filing feeds (announcements.xml, FinancialResultsFeed.aspx, AnnualReportFeed.aspx) are not
+# polled. They only ever hold BSE's last few filings across all ~5,000 companies, so a followed
+# company almost never appears in them, and BSE's per-company API refuses both GitHub's and
+# Render's servers ("Access Denied", checked Nov 2026). The parsing still handles them, so they
+# can be added back from a machine BSE allows.
 
 
 GOOGLE_NEWS_SOURCE = "google_news_rss"

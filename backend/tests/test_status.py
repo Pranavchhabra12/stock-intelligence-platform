@@ -25,7 +25,7 @@ def facts(**over) -> dict:  # noqa: ANN003
     base = {
         "companies_listed": 2631, "companies_tracked": 5, "latest_price_date": date(2026, 11, 20),
         "stale_price_companies": 0, "latest_news_at": NOW - timedelta(hours=1), "news_last_24h": 40,
-        "latest_filing_at": NOW - timedelta(hours=5), "latest_ai_at": NOW - timedelta(hours=2),
+        "latest_ai_at": NOW - timedelta(hours=2),
         "ai_rejected_7d": 0, "ai_saved_7d": 250, "latest_tone_day": date(2026, 11, 21), "documents_failed": 0,
         "fallback_rows_30d": 0,
         "results_fetch": {"last_success": NOW - timedelta(days=3), "failing": 0, "companies": 5},
@@ -67,7 +67,7 @@ def test_status_endpoint(client: TestClient, engine: Engine) -> None:
     assert body["status"] in ("ok", "warning", "failed")
     names = [c["name"] for c in body["checks"]]
     assert names[0] == "Database" and body["checks"][0]["status"] == "ok"
-    assert {"Prices and results", "News", "Exchange filings (BSE)", "AI (Gemini)"} <= set(names)
+    assert {"Prices and results", "News", "AI (Gemini)"} <= set(names)
     assert body["companies"]["tracked"] == 5 and body["companies"]["cap"] == 25
     assert body["database_ms"] is not None
 
