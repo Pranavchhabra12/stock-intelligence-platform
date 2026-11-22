@@ -22,7 +22,12 @@ const STATE_WORDS: Record<string, string> = {
 };
 const ACTIVE = new Set(["pending", "running"]);
 
-export default function RefreshPanel({ ticker, lastJob }: { ticker: string; lastJob: Job | null }) {
+export default function RefreshPanel({ ticker, lastJob, autoStart = false }: {
+  ticker: string;
+  lastJob: Job | null;
+  /** fetch straight away: a company being opened for the first time */
+  autoStart?: boolean;
+}) {
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(lastJob && ACTIVE.has(lastJob.status) ? lastJob : null);
   const [message, setMessage] = useState<string | null>(null);
@@ -56,6 +61,8 @@ export default function RefreshPanel({ ticker, lastJob }: { ticker: string; last
     if (job && ACTIVE.has(job.status)) {
       setBusy(true);
       poll(job.job_id);
+    } else if (autoStart && !(lastJob && Date.now() - Date.parse(lastJob.requested_at) < 15 * 60 * 1000)) {
+      start();
     }
     return () => clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps

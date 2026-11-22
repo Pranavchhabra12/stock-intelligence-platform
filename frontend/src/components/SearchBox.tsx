@@ -93,7 +93,7 @@ export default function SearchBox({ compact = false, autoFocus = false }: { comp
         autoComplete="off"
         spellCheck={false}
         autoFocus={autoFocus}
-        placeholder={compact ? "Search a company" : "Company name, NSE symbol or BSE code"}
+        placeholder={compact ? "Search any NSE company" : "Search any NSE company by name or symbol"}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={onKey}
@@ -109,7 +109,10 @@ export default function SearchBox({ compact = false, autoFocus = false }: { comp
               <a href={`/stocks/${encodeURIComponent(tickerOf(r))}`}
                  onClick={(e) => { e.preventDefault(); go(r); }}
                  onMouseEnter={() => setActive(i)}>
-                <span>{r.company_name}</span>
+                <span>
+                  {r.company_name}
+                  {r.is_tracked && <span className="in-pbi">In Power BI</span>}
+                </span>
                 <span className="tick">{r.listings.map((l) => l.exchange === "BSE" ? l.exchange_code : l.symbol)
                   .filter(Boolean).join(" / ")}</span>
               </a>

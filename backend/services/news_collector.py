@@ -116,7 +116,7 @@ class NewsCollector:
         result = NewsResult()
         with self.engine.connect() as conn:
             self.source_ids = dict(conn.execute(text("select source_code, source_id from app.data_sources")).all())
-            matcher = CompanyMatcher.from_database(conn)
+            matcher = CompanyMatcher.from_database(conn, company_ids)
             companies = conn.execute(text(
                 """
                 select c.company_id, c.company_name,
@@ -124,7 +124,7 @@ class NewsCollector:
                                                   and a.alias like '% %') as names,
                        exists (select 1 from app.article_companies ac where ac.company_id = c.company_id) as has_news
                 from app.companies c left join app.company_aliases a using (company_id)
-                where c.is_active and (cast(:ids as uuid[]) is null or c.company_id = any(:ids))
+                where (cast(:ids as uuid[]) is null and c.is_tracked) or c.company_id = any(:ids)
                 group by c.company_id
                 """
             ), {"ids": company_ids}).mappings().all()
