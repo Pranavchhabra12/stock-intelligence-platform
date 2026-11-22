@@ -45,6 +45,16 @@ IPs and would share one visitor's rate limit. Those requests send `X-Internal-Ke
 compares it in constant time and skips the limit only when it matches. Browser requests through
 `/api/*` carry the visitor's own IP and stay limited.
 
+## Keeping the API awake
+
+Render's free plan stops the API after 15 minutes without traffic, and the next request waits
+about a minute for it to start. The `Keep the API awake` workflow requests `/health` every
+10 minutes from 06:30 to 00:20 IST, so the site is quick while people are likely to visit.
+Overnight the API sleeps: Render grants 750 free hours a month per workspace, and using them up
+pauses the service until the next month, so pinging around the clock (744 hours in a 31-day
+month) would leave almost no margin. Daytime pinging uses about 540. Because `/health` also
+checks the database, a failed run doubles as an outage alert.
+
 ## Updating
 
 Merging to `main` redeploys both the website and the API. Database migrations run in the daily
