@@ -76,3 +76,35 @@ class FinancialsResponse(BaseModel):
     data_note: str = DATA_NOTE
     metric_definitions: dict[str, MetricInfo]
     periods: list[FinancialPeriod]
+
+
+class PriceSnapshot(BaseModel):
+    trade_date: date
+    close: float
+    previous_close: float | None = None
+    change: float | None = None
+    change_pct: float | None = None
+    high_52w: float | None = Field(None, description="Highest high over the last 12 months")
+    low_52w: float | None = Field(None, description="Lowest low over the last 12 months")
+    source: str
+
+
+class KeyMetric(BaseModel):
+    code: str
+    label: str
+    unit: str = Field(..., description="INR, INR_PER_SHARE, RATIO or PERCENT")
+    value: float | None = None
+    basis: str | None = Field(None, description='What it was worked out from, e.g. "last 4 quarters to Sep 2026"')
+    note: str | None = Field(None, description="Why the value is missing, if it is")
+
+
+class SummaryResponse(BaseModel):
+    company_id: UUID
+    company_name: str
+    sector: str | None = None
+    industry: str | None = None
+    listing: ListingRef
+    price: PriceSnapshot | None = None
+    metrics: list[KeyMetric]
+    sources: list[SourceInfo] = Field(default_factory=list)
+    data_note: str = DATA_NOTE
