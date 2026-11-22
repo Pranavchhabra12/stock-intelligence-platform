@@ -13,9 +13,9 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 | 3 | News, exchange filings and company reports | ✅ Done |
 | 4 | AI summaries and sentiment (Gemini) | ✅ Done |
 | 5 | Scheduled and on-demand pipelines | ✅ Done |
-| 6 | Power BI dashboards | Next |
-| 7 | Next.js frontend | Planned |
-| 8 | Testing and deployment | Planned |
+| 6 | Power BI dashboards | Needs a Windows laptop |
+| 7 | Next.js website | ✅ Done |
+| 8 | Testing and deployment | Next |
 
 ## Stack
 
@@ -38,6 +38,7 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 - **AI that can be checked.** Gemini rates each headline's tone for the company it's about and summarises annual reports. Answers must match a JSON schema; every summary point cites report pages, and any figure that isn't in the report text is dropped. Each result records its model and prompt version.
 - **Sentiment history that doesn't drift.** Each finished day is scored once, weighted by how relevant each article is, and never rewritten; a new method gets a new version.
 - **One pipeline, three triggers.** A refresh button (`POST /stocks/{ticker}/refresh`), the daily run and the hourly feeds run all go through the same steps and are recorded as jobs. Only one refresh per company can run at a time, a recent one is reused, and a crashed step never stops the others.
+- **A website built around one company at a time.** Search by name, symbol or BSE code; each company page shows the price, key numbers (each saying what it was based on), results, the annual-report summary with page references, news with its tone, and a 30-day tone strip. Numbers use Indian grouping (₹1.35 lakh crore).
 - **Idempotent by design.** Natural unique keys plus upserts mean a pipeline can be re-run safely.
 - **Private by default.** Application tables live in an `app` schema that Supabase's public API does not expose, with row level security enabled on every table.
 - **Provenance everywhere.** Every fact records its `data_sources` row, including licence and attribution details.
@@ -67,6 +68,8 @@ documentation/      architecture, database, API, decisions, checklist
 | Method | Endpoint | Purpose |
 |---|---|---|
 | GET | `/health` | Service and database check |
+| GET | `/stocks` | Every tracked company with its latest close, day change and 30 days of news tone |
+| GET | `/stocks/{ticker}/summary` | Latest price, 52-week range, market cap, P/E, P/B, dividend yield, ROE and growth |
 | GET | `/stocks/search?q=` | Search by name, abbreviation, symbol, BSE code or ISIN (typo-tolerant) |
 | GET | `/stocks/{ticker}?exchange=` | Company details with all listings |
 | GET | `/stocks/{ticker}/prices?start=&end=&exchange=` | Daily OHLCV, each row tagged with its provider |
@@ -98,6 +101,10 @@ uvicorn backend.main:app --reload             # http://localhost:8000/docs
 python -m backend.scheduler.local             # optional: keep the daily and hourly schedules running
 
 pytest                                        # full test suite
+
+cd frontend && npm install
+cp .env.example .env.local                    # API_URL=http://localhost:8000
+npm run dev                                   # http://localhost:3000
 ```
 
 To use Supabase instead, put its **Session pooler** connection string (with `?sslmode=require`) in `DATABASE_URL`, then run the same migration and seed commands.
