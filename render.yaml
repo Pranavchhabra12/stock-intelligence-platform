@@ -21,7 +21,7 @@ services:
       - key: API_RATE_LIMIT_PER_MINUTE
         value: "60"
       - key: DB_POOL_SIZE
-        value: "3"             # Supabase's free session pooler allows few connections
+        value: "5"             # 5 + 5 overflow; Supabase's free session pooler allows few connections
       - key: DATABASE_URL      # Supabase session pooler string, with the password
         sync: false
       - key: GEMINI_API_KEY
