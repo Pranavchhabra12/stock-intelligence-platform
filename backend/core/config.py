@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     eodhd_api_key: SecretStr | None = None
     # IndianAPI.in: company results (quarterly and annual). Optional; Yahoo is used without it.
     indianapi_key: SecretStr | None = None
+    # GDELT news search: off by default (it refuses GitHub's servers). Fine to turn on locally.
+    use_gdelt: bool = False
     price_backfill_years: int = Field(default=5, ge=1, le=20)
 
     # Phase 4: AI analysis. Without a key, analysis is skipped and everything else still works.
