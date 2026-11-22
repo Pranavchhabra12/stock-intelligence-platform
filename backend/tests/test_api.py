@@ -102,3 +102,27 @@ def test_rate_limiter_blocks_after_limit() -> None:
     results = [limiter.check("1.2.3.4")[0] for _ in range(4)]
     assert results == [True, True, True, False]
     assert limiter.check("5.6.7.8")[0] is True
+
+
+def test_website_server_with_the_internal_key_skips_the_rate_limit() -> None:
+    from fastapi import FastAPI
+
+    from backend.core.middleware import install_middleware
+
+    app = FastAPI()
+    install_middleware(app, rate_limit_per_minute=2, internal_api_key="s3cret-key")
+
+    @app.get("/ping")
+    def ping() -> dict:
+        return {"ok": True}
+
+    with TestClient(app) as c:
+        visitor = [c.get("/ping", headers={"x-forwarded-for": "9.9.9.9"}).status_code for _ in range(3)]
+        assert visitor == [200, 200, 429]
+        site = [c.get("/ping", headers={"x-forwarded-for": "9.9.9.9", "x-internal-key": "s3cret-key"}).status_code
+                for _ in range(5)]
+        assert site == [200] * 5
+        wrong = c.get("/ping", headers={"x-forwarded-for": "8.8.8.8", "x-internal-key": "guess"})
+        assert wrong.status_code == 200   # a wrong key is just a normal visitor
+        assert [c.get("/ping", headers={"x-forwarded-for": "8.8.8.8", "x-internal-key": "guess"}).status_code
+                for _ in range(2)] == [200, 429]

@@ -47,3 +47,6 @@ Short records of architectural choices and why they were made. The finalised sta
 | 41 | Clear one company's cache after its refresh, via a checked server action | Five-minute caching keeps the site fast; checking the job first means the cache can't be emptied at will |
 | 42 | Share images drawn from live data per company | A shared link is the main way people will see this project, so the preview should show the product |
 | 43 | Motion only where it has a job: feedback, state change, or one entrance | Taken from published animation guidance (Emil Kowalski); numbers people are reading never move for style |
+| 44 | API on Render's free plan, in Singapore | $0; it sleeps when idle, which suits a demo. Singapore is closest to Indian visitors and to the Sydney database |
+| 45 | A shared key lets the website's server skip the rate limit | All page renders come from Vercel's IPs; without it, ten visitors would look like one client |
+| 46 | Keep-awake ping only from 06:30 to 00:20 IST | Removes the one-minute wake-up while people visit; pinging 24/7 would use almost all of Render's 750 free hours, and running out pauses the API |

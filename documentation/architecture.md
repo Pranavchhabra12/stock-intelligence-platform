@@ -79,7 +79,7 @@ One pipeline (`backend/services/pipeline.py`), three triggers, every run recorde
 | Part | Host |
 |---|---|
 | Website | Vercel (Next.js, root directory `frontend`) |
-| Backend API | Render (free web service) |
+| Backend API | Render (free web service, Singapore) |
 | Daily pipeline | GitHub Actions scheduled workflow (prices, financials, news, AI analysis) |
 | AI model | Google Gemini API, free tier |
 | Hourly feeds | GitHub Actions, weekdays during market hours |
