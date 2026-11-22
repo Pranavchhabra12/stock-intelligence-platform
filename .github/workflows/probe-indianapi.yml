@@ -8,35 +8,31 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch HDFC Bank and describe the response
+      - name: Describe financials for a bank, an IT company and a conglomerate
         env:
           KEY: ${{ secrets.INDIANAPI_KEY }}
         run: |
-          test -n "$KEY" || { echo "INDIANAPI_KEY is not set"; exit 1; }
-          curl -sS -o stock.json -w "status %{http_code}, %{size_download} bytes\n" \
-            -H "x-api-key: $KEY" "https://stock.indianapi.in/stock?name=HDFC%20Bank"
+          for q in HDFCBANK TCS RELIANCE; do
+            curl -sS -o "$q.json" -w "$q: status %{http_code}, %{size_download} bytes\n" \
+              -H "x-api-key: $KEY" "https://stock.indianapi.in/stock?name=$q"
+          done
           python3 - <<'PY'
           import json
-          d = json.load(open("stock.json"))
-          def shape(x, depth=0, key=""):
-              pad = "  " * depth
-              if isinstance(x, dict):
-                  print(f"{pad}{key} {{{len(x)} keys}}")
-                  if depth < 3:
-                      for k, v in list(x.items())[:40]:
-                          shape(v, depth + 1, k)
-              elif isinstance(x, list):
-                  print(f"{pad}{key} [list of {len(x)}]")
-                  if x and depth < 3:
-                      shape(x[0], depth + 1, "[0]")
-              else:
-                  print(f"{pad}{key} = {str(x)[:80]!r}")
-          shape(d)
-          fin = d.get("financials") if isinstance(d, dict) else None
-          print("\n===== financials (first 2 periods, full) =====")
-          print(json.dumps(fin[:2] if isinstance(fin, list) else fin, indent=1)[:12000])
-          if isinstance(fin, list):
-              print("\n===== all periods =====")
-              for p in fin:
-                  print({k: v for k, v in p.items() if not isinstance(v, (dict, list))})
+          for q in ["HDFCBANK", "TCS", "RELIANCE"]:
+              d = json.load(open(f"{q}.json"))
+              if not isinstance(d, dict) or "financials" not in d:
+                  print(q, "->", str(d)[:300]); continue
+              p = d.get("companyProfile") or {}
+              print(f"\n######## {q}: name={d.get('companyName')!r} nse={p.get('exchangeCodeNse')} isin={p.get('isInId')}")
+              for i, per in enumerate(d["financials"]):
+                  m = per["stockFinancialMap"]
+                  inc = {x["key"]: x["value"] for x in m.get("INC") or []}
+                  bal = {x["key"]: x["value"] for x in m.get("BAL") or []}
+                  head = f"{per['Type']:8} {per['EndDate']} FY{per['FiscalYear']} len={inc.get('periodLength')}{inc.get('periodType')}"
+                  pick = {k: inc.get(k) for k in ("TotalRevenue", "Revenue", "NetIncome", "DilutedEPSExcludingExtraOrdItems",
+                          "InterestIncomeBank", "Non-InterestIncomeBank", "NetInterestIncome")}
+                  print(head, {k: v for k, v in pick.items() if v is not None},
+                        "| equity", bal.get("TotalEquity"), "shares", bal.get("TotalCommonSharesOutstanding"), "| nINC", len(inc), "nBAL", len(bal))
+                  if i in (0, 7):
+                      print("   INC keys:", sorted(inc))
           PY
