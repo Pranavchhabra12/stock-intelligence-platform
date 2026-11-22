@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Financials } from "@/lib/api";
 import { metricValue } from "@/lib/format";
@@ -17,6 +17,12 @@ export default function FinancialsTable({ quarterly, annual }: {
   // Oldest on the left, so the table reads in time order.
   const periods = [...(data?.periods ?? [])].reverse();
   const defs = data?.metric_definitions ?? {};
+  // On a narrow screen the table scrolls sideways; open it on the newest period.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [kind]);
 
   return (
     <section className="section" aria-labelledby="fin-h">
@@ -30,7 +36,7 @@ export default function FinancialsTable({ quarterly, annual }: {
       {periods.length === 0 ? (
         <p className="empty-state">No {kind} results stored yet.</p>
       ) : (
-        <div className="table-scroll" tabIndex={0} aria-label="Results table, scrolls sideways">
+        <div className="table-scroll" ref={scroller} tabIndex={0} aria-label="Results table, scrolls sideways">
           <table className="statement">
             <thead>
               <tr>
@@ -51,6 +57,7 @@ export default function FinancialsTable({ quarterly, annual }: {
           </table>
         </div>
       )}
+      {periods.length > 2 && <p className="scroll-hint small muted">Swipe the table for earlier periods.</p>}
       <p className="source">
         As reported{data?.source?.attribution ? `. ${data.source.attribution.replace(/\.\s*$/, "")}` : ""}. A dash means the source didn’t
         report that figure; nothing is estimated.
