@@ -1,0 +1,37 @@
+name: Probe BSE
+on:
+  push:
+    branches: [bse-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask BSE's feeds and announcements API what they return
+        run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+          for url in \
+            "https://beta.bseindia.com/data/xml/announcements.xml" \
+            "https://www.bseindia.com/Data/XML/FinancialResultsFeed.aspx" \
+            "https://www.bseindia.com/Data/XML/AnnualReportFeed.aspx" ; do
+            echo "=== $url"
+            curl -sS -L -m 30 -A "$UA" -o body -w "status %{http_code} type %{content_type} bytes %{size_download}\n" "$url" || true
+            head -c 600 body | tr '\n' ' '; echo; echo "items: $(grep -o '<item' body | wc -l)"
+          done
+          echo "=== JSON announcements API (HDFC Bank 500180, last 3 weeks)"
+          curl -sS -m 30 -A "$UA" -H "Referer: https://www.bseindia.com/" -H "Origin: https://www.bseindia.com" \
+            -H "Accept: application/json, text/plain, */*" -o ann.json \
+            -w "status %{http_code} type %{content_type} bytes %{size_download}\n" \
+            "https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate=20261101&strScrip=500180&strSearch=P&strToDate=20261122&strType=C&subcategory=-1" || true
+          python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open("ann.json"))
+          except Exception as e:
+              print("not json:", e, open("ann.json", errors="replace").read()[:400]); raise SystemExit
+          rows = d.get("Table") or []
+          print("keys:", list(d)[:5], "rows:", len(rows))
+          for r in rows[:6]:
+              print({k: r.get(k) for k in ("NEWSSUB", "CATEGORYNAME", "SUBCATNAME", "NEWS_DT", "ATTACHMENTNAME", "HEADLINE")})
+          PY
