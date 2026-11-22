@@ -207,6 +207,10 @@ export class ApiError extends Error {
 }
 
 const SERVER_API = (process.env.API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+// Page renders all come from this site's servers (one IP), so they identify themselves to the
+// API with a shared key instead of being rate limited as one visitor. Never sent to browsers.
+const INTERNAL_HEADERS: Record<string, string> = process.env.INTERNAL_API_KEY
+  ? { "x-internal-key": process.env.INTERNAL_API_KEY } : {};
 
 /** Cache tag for everything shown about one company; cleared after a refresh finishes. */
 export const companyTag = (ticker: string) => `stock:${ticker.toUpperCase()}`;
@@ -214,7 +218,7 @@ export const OVERVIEW_TAG = "overview";
 
 /** Server-side fetch, cached for five minutes (or until its tag is cleared). */
 export async function api<T>(path: string, revalidate = 300, tags: string[] = []): Promise<T> {
-  const res = await fetch(`${SERVER_API}${path}`, { next: { revalidate, tags } });
+  const res = await fetch(`${SERVER_API}${path}`, { next: { revalidate, tags }, headers: INTERNAL_HEADERS });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new ApiError(res.status, body?.error?.message ?? `Request failed (${res.status})`);

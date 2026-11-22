@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import threading
 import time
@@ -53,8 +54,21 @@ def _client_id(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def install_middleware(app: FastAPI, rate_limit_per_minute: int) -> None:
+INTERNAL_KEY_HEADER = "x-internal-key"
+
+
+def install_middleware(app: FastAPI, rate_limit_per_minute: int, internal_api_key: str | None = None) -> None:
+    """Request ids, access logs and the per-client rate limit.
+
+    The website renders pages on its own servers, so all its calls share one IP. Those calls
+    carry `X-Internal-Key`; when it matches INTERNAL_API_KEY they skip the limit (visitors'
+    own browser calls are still limited by their IP)."""
     limiter = FixedWindowRateLimiter(rate_limit_per_minute) if rate_limit_per_minute > 0 else None
+    internal = internal_api_key.encode() if internal_api_key else None
+
+    def trusted(request: Request) -> bool:
+        given = request.headers.get(INTERNAL_KEY_HEADER)
+        return bool(internal and given and hmac.compare_digest(given.encode(), internal))
 
     @app.middleware("http")
     async def request_context(
@@ -65,7 +79,7 @@ def install_middleware(app: FastAPI, rate_limit_per_minute: int) -> None:
         token = request_id_var.set(request_id)
         started = time.perf_counter()
         try:
-            if limiter and request.url.path not in RATE_LIMIT_EXEMPT:
+            if limiter and request.url.path not in RATE_LIMIT_EXEMPT and not trusted(request):
                 allowed, retry_after = limiter.check(_client_id(request))
                 if not allowed:
                     response: Response = error_response(

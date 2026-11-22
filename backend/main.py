@@ -29,7 +29,8 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description=f"Research API for Indian listed companies (NSE/BSE). {DISCLAIMER}",
     )
-    install_middleware(app, settings.api_rate_limit_per_minute)
+    install_middleware(app, settings.api_rate_limit_per_minute,
+                       settings.internal_api_key.get_secret_value() if settings.internal_api_key else None)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
