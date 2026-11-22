@@ -24,7 +24,7 @@ export default async function Image() {
           Research Indian listed companies
         </div>
         <span style={{ fontSize: 28, color: C.ink2, marginTop: 14 }}>
-          Prices, results, filings and AI-rated news tone for NSE and BSE companies
+          Prices, results and AI-rated news tone for NSE and BSE companies
         </span>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 44 }}>
           {rows.map((c) => (
