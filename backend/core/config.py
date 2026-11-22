@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash-lite"
     ai_max_requests_per_run: int = Field(default=40, ge=1, le=500)
 
+    # Phase 5: on-demand refresh jobs
+    refresh_cooldown_minutes: int = Field(default=15, ge=0, le=1440)   # reuse a refresh this recent
+    max_active_jobs: int = Field(default=3, ge=1, le=20)               # across all companies
+    job_stale_minutes: int = Field(default=45, ge=5, le=1440)          # a job running longer is marked failed
+
     @property
     def market_data_provider_codes(self) -> list[str]:
         return [c.strip() for c in self.market_data_providers.split(",") if c.strip()]
