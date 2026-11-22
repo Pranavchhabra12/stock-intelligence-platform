@@ -1,0 +1,31 @@
+name: Collect news feeds and filings
+
+# BSE's filing feeds only list the latest few items, so they are read every hour
+# during market hours (09:00-19:00 IST, weekdays). Publisher RSS feeds come along.
+# GDELT search and prices run in the daily "Collect market data and news" workflow.
+on:
+  schedule:
+    - cron: "30 3-13 * * 1-5"   # :00 past each hour, 09:00-19:00 IST
+  workflow_dispatch:
+
+concurrency:
+  group: collect-feeds
+  cancel-in-progress: false
+
+jobs:
+  feeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      LOG_LEVEL: WARNING
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - run: alembic upgrade head
+      - run: python -m backend.collect_news --all --no-gdelt

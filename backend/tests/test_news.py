@@ -1,0 +1,385 @@
+"""News: URL handling, feed parsing, GDELT, company matching, collection and the API."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, text
+
+from backend.providers.market_data.base import ProviderError
+from backend.providers.news.base import NewsItem, canonical_url, clean_text, headline_hash
+from backend.providers.news.gdelt import GdeltNewsAdapter, build_query, parse_seendate, tidy_title
+from backend.providers.news.rss import GOOGLE_NEWS_SOURCE, Feed, RssAdapter, google_news_feed, parse_feed
+from backend.services.company_matcher import CompanyMatcher
+from backend.services.news_collector import NewsCollector, document_type_for, is_not_news
+
+NO_SLEEP = lambda _s: None  # noqa: E731
+NOW = datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
+
+
+# ---------------- URLs and text ----------------
+
+def test_canonical_url_drops_tracking_and_fragments() -> None:
+    assert canonical_url("HTTPS://Example.COM/News/Story/?utm_source=x&id=5&fbclid=y#top") == \
+        "https://example.com/News/Story?id=5"
+
+
+def test_headline_hash_ignores_case_and_punctuation() -> None:
+    assert headline_hash("Reliance Q2: profit up 10%!") == headline_hash("reliance q2 profit up 10")
+
+
+def test_clean_text_strips_html_and_caps_length() -> None:
+    assert clean_text("<p>Shares <b>rose</b>\n today</p>") == "Shares rose today"
+    assert clean_text("word " * 200, limit=20).endswith("…")
+
+
+# ---------------- RSS ----------------
+
+RSS = b"""<?xml version="1.0"?><rss version="2.0"><channel>
+<item><title>Reliance Industries shares hit record</title><link>https://ex.com/a?utm_source=rss</link>
+<description><![CDATA[<p>RIL rose 3% on Friday.</p>]]></description>
+<pubDate>Fri, 20 Nov 2026 10:30:00 +0530</pubDate></item>
+<item><title>No link here</title></item>
+</channel></rss>"""
+
+ATOM = b"""<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">
+<entry><title>TCS wins deal</title><link href="https://ex.com/tcs"/><updated>2026-11-20T08:00:00Z</updated>
+<summary>Large contract</summary></entry></feed>"""
+
+FEED = Feed("et_markets_rss", "https://ex.com/feed", "The Economic Times")
+
+
+def test_parse_rss_and_atom() -> None:
+    items = parse_feed(RSS, FEED)
+    assert len(items) == 1
+    assert items[0].headline == "Reliance Industries shares hit record"
+    assert items[0].snippet == "RIL rose 3% on Friday."
+    assert items[0].published_at == datetime(2026, 11, 20, 5, 0, tzinfo=UTC)
+    atom = parse_feed(ATOM, FEED)
+    assert atom[0].url == "https://ex.com/tcs" and atom[0].published_at.year == 2026
+
+
+# Real shapes seen in BSE's feeds (Nov 2026): title "Company (code)", subject in the description,
+# no pubDate; the annual-report feed has "AS ON DATE" instead of a subject.
+BSE_ANNOUNCEMENTS = b"""<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel>
+<title>BSE</title><item><title>Maruti Suzuki India Ltd (532500)</title>
+<link>https://www.bseindia.com/xml-data/corpfiling/AttachLive/5a6a.pdf</link>
+<description>Price increase</description></item></channel></rss>"""
+BSE_ANNUAL = b"""\xef\xbb\xbf<?xml version="1.0" encoding="utf-8"?><rss version="2.0"><channel><title>BSE</title>
+<item><title>Infosys Ltd (500209)</title>
+<link>https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0278.pdf</link>
+<description>AS ON DATE : 22-Nov-2026</description></item></channel></rss>"""
+
+
+def test_bse_items_get_readable_headlines_codes_and_dates() -> None:
+    ann = parse_feed(BSE_ANNOUNCEMENTS, Feed("bse_announcements", "u", "BSE", "exchange_filing"))[0]
+    assert ann.headline == "Maruti Suzuki India Ltd: Price increase"
+    assert ann.exchange_code == "532500" and ann.snippet is None and ann.published_at is None
+
+    annual = parse_feed(BSE_ANNUAL, Feed("bse_annual_reports", "u", "BSE", "exchange_filing", "Annual report"))[0]
+    assert annual.headline == "Infosys Ltd: Annual report"
+    assert annual.exchange_code == "500209"
+    assert annual.published_at == datetime(2026, 11, 22, tzinfo=UTC)
+
+
+def test_document_types_from_filings() -> None:
+    def filing(source: str, headline: str, url: str = "https://bse/x.pdf") -> NewsItem:
+        return NewsItem(source, url, headline, kind="exchange_filing", exchange_code="500209")
+
+    assert document_type_for(filing("bse_annual_reports", "Infosys Ltd: Annual report")) == "annual_report"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Financial Results for Q2")) == \
+        "quarterly_results"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Investor Presentation")) == \
+        "investor_presentation"
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Change in Directors")) is None
+    assert document_type_for(filing("bse_announcements", "Infosys Ltd: Financial Results", "https://bse/page")) is None
+
+
+def test_gdelt_titles_are_tidied() -> None:
+    assert tidy_title("RIL , SAIL among top upgrades ( up 3 % )") == "RIL, SAIL among top upgrades (up 3%)"
+    assert tidy_title("Firms lose ₹1. 55 lakh cr - TeluguPeople. com News") == \
+        "Firms lose ₹1.55 lakh cr - TeluguPeople.com News"
+
+
+def test_hostile_xml_is_refused() -> None:
+    bomb = b"""<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]>
+<rss><channel><item><title>&lol2;</title><link>https://x</link></item></channel></rss>"""
+    with pytest.raises(ProviderError):
+        parse_feed(bomb, FEED)
+
+
+def test_rss_adapter_reports_blocked_feed() -> None:
+    adapter = RssAdapter(client=httpx.Client(transport=httpx.MockTransport(lambda _r: httpx.Response(403))),
+                         sleep=NO_SLEEP)
+    with pytest.raises(ProviderError, match="403"):
+        adapter.fetch(FEED)
+
+
+# ---------------- GDELT ----------------
+
+def test_gdelt_query_and_dates() -> None:
+    assert build_query(["Reliance Industries", "Reliance Industries Limited"]) == \
+        '("Reliance Industries" OR "Reliance Industries Limited") sourcecountry:india sourcelang:english'
+    assert build_query(["Infosys"]) == "Infosys sourcecountry:india sourcelang:english"
+    assert parse_seendate("20261120T101500Z") == datetime(2026, 11, 20, 10, 15, tzinfo=UTC)
+    assert parse_seendate("garbage") is None
+
+
+def gdelt_with(handler) -> GdeltNewsAdapter:  # noqa: ANN001
+    return GdeltNewsAdapter(client=httpx.Client(transport=httpx.MockTransport(handler)),
+                            min_interval_seconds=0, sleep=NO_SLEEP)
+
+
+def test_gdelt_parses_articles() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["mode"] == "ArtList" and request.url.params["format"] == "json"
+        return httpx.Response(200, json={"articles": [
+            {"url": "https://news.ex/1", "title": "Reliance Industries to expand", "seendate": "20261120T101500Z",
+             "domain": "news.ex", "language": "English"},
+            {"url": "", "title": "missing url"},
+        ]})
+
+    items = gdelt_with(handler).search(["Reliance Industries"])
+    assert [i.url for i in items] == ["https://news.ex/1"]
+    assert items[0].publisher == "news.ex" and items[0].language == "english"
+
+
+def test_gdelt_plain_text_error_is_reported() -> None:
+    with pytest.raises(ProviderError, match="rejected"):
+        gdelt_with(lambda _r: httpx.Response(200, text="Invalid query")).search(["Infosys"])
+
+
+# ---------------- Company matching ----------------
+
+RIL, HDFC, TCS = uuid4(), uuid4(), uuid4()
+MATCHER = CompanyMatcher([
+    {"company_id": RIL, "names": ["Reliance Industries"], "other_aliases": ["Reliance"],
+     "abbreviations": ["RIL"], "exclude": ["Reliance Power", "Reliance Infrastructure"], "bse_codes": ["500325"]},
+    {"company_id": HDFC, "names": ["HDFC Bank"], "abbreviations": ["HDFC", "HDFCBANK"], "exclude": ["HDFC Life"]},
+    {"company_id": TCS, "names": ["Tata Consultancy Services", "Tata Consultancy"], "abbreviations": ["TCS"]},
+])
+
+
+@pytest.mark.parametrize(("headline", "snippet", "expected"), [
+    ("Reliance Industries Q2 profit rises", None, {RIL: (1.0, "headline")}),
+    ("RIL shares gain after results", None, {RIL: (0.85, "headline")}),
+    ("Reliance Jio adds subscribers", None, {RIL: (0.85, "headline")}),       # subsidiary: still RIL
+    ("Reliance Power shares surge", None, {}),                                # a different company
+    ("HDFC Life premium grows", None, {}),
+    ("Markets close higher", "TCS and HDFC Bank led the gains", {TCS: (0.6, "snippet"), HDFC: (0.6, "snippet")}),
+    ("tcs shares", None, {}),                                                  # abbreviations are case-sensitive
+    ("April gains for all", None, {}),                                         # "RIL" inside a word doesn't count
+])
+def test_matcher(headline: str, snippet: str | None, expected: dict) -> None:
+    got = {m.company_id: (m.score, m.mention_type) for m in MATCHER.match(headline, snippet)}
+    assert got == expected
+
+
+def test_matcher_uses_exact_bse_code_for_filings() -> None:
+    assert [m.company_id for m in MATCHER.match("Some Name Ltd: Results", None, "500325")] == [RIL]
+    assert MATCHER.match("Reliance Industries Ltd: Results", None, "999999") == []   # not ours: no guessing
+
+
+# ---------------- Collection against the database ----------------
+
+class FakeRss:
+    def __init__(self, items_by_feed: dict[str, list[NewsItem]], fail: set[str] = frozenset()) -> None:
+        self.items_by_feed, self.fail = items_by_feed, fail
+
+    def fetch(self, feed: Feed) -> list[NewsItem]:
+        if feed.source_code in self.fail:
+            raise ProviderError(f"{feed.source_code}: HTTP 403")
+        return self.items_by_feed.get(feed.source_code, [])
+
+
+class FakeGdelt:
+    def __init__(self, items: list[NewsItem]) -> None:
+        self.items, self.calls = items, []
+
+    def search(self, names, timespan="7d", max_records=100):  # noqa: ANN001, ANN201
+        self.calls.append((tuple(names), timespan))
+        return [i for i in self.items if any(n.lower() in i.headline.lower() or "query" in i.headline for n in names)]
+
+
+FEEDS = (
+    Feed("et_markets_rss", "https://x/et", "The Economic Times"),
+    Feed("bse_financial_results", "https://x/bse", "BSE", "exchange_filing"),
+)
+
+
+def item(source: str, url: str, headline: str, snippet: str | None = None) -> NewsItem:
+    return NewsItem(source_code=source, url=url, headline=headline, snippet=snippet,
+                    publisher="Pub", published_at=datetime(2026, 11, 20, 9, 0, tzinfo=UTC))
+
+
+def clean_news(engine: Engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("delete from app.article_companies; delete from app.news_articles; "
+                          "delete from app.document_chunks; delete from app.company_documents;"))
+
+
+@pytest.fixture
+def clean(engine: Engine) -> Iterator[None]:
+    clean_news(engine)
+    yield
+    clean_news(engine)
+
+
+def links(engine: Engine) -> list[tuple]:
+    with engine.connect() as conn:
+        return [tuple(r) for r in conn.execute(text(
+            """
+            select c.company_name, a.headline, ac.relevance_score::float, ac.mention_type
+            from app.article_companies ac join app.news_articles a using (article_id)
+            join app.companies c using (company_id) order by 1, 2
+            """
+        ))]
+
+
+def test_feed_items_are_matched_stored_once_and_unrelated_ones_dropped(engine: Engine, clean: None) -> None:
+    rss = FakeRss({"et_markets_rss": [
+        item("et_markets_rss", "https://et/1?utm_source=a", "Infosys wins large deal"),
+        item("et_markets_rss", "https://et/1?utm_source=b", "Infosys wins large deal"),  # same URL, other tracking
+        item("et_markets_rss", "https://et/2", "Gold prices fall"),
+    ]})
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert result.articles_new == 1 and result.duplicates == 1 and result.unmatched_dropped == 1
+    assert links(engine) == [("Infosys", "Infosys wins large deal", 0.85, "headline")]
+
+
+def test_syndicated_copy_under_another_url_is_the_same_story(engine: Engine, clean: None) -> None:
+    rss = FakeRss({"et_markets_rss": [
+        item("et_markets_rss", "https://et/story", "TCS Q2 results: profit rises 8%"),
+        item("et_markets_rss", "https://other.com/tcs-q2", "TCS Q2 Results - Profit Rises 8%"),
+    ]})
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert result.articles_new == 1 and result.duplicates == 1
+
+
+def test_gdelt_results_must_name_the_company_in_the_headline(engine: Engine, clean: None) -> None:
+    gdelt = FakeGdelt([
+        item("gdelt", "https://g/1", "Reliance Industries signs energy pact"),
+        item("gdelt", "https://g/2", "Oil prices and the query economy"),   # returned by the search, no name
+    ])
+    result = NewsCollector(engine, sleep=lambda _: None, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
+    got = {h: (score, mention) for company, h, score, mention in links(engine) if company == "Reliance Industries"}
+    assert got == {"Reliance Industries signs energy pact": (1.0, "headline")}
+    assert result.unmatched_dropped >= 1
+    assert len(gdelt.calls) == 1                       # one combined search, not one per company
+    names, timespan = gdelt.calls[0]
+    assert {"Reliance Industries", "Infosys"} <= set(names) and timespan == "1m"   # first run: a month
+
+
+def test_bse_results_filing_registers_a_document(engine: Engine, clean: None) -> None:
+    rss = FakeRss({"bse_financial_results": [
+        NewsItem("bse_financial_results", "https://bse/att/abc.pdf", "HDFC Bank Ltd: Financial results",
+                 publisher="BSE", kind="exchange_filing", exchange_code="500180"),
+    ]})
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert result.documents_registered == 1
+    with engine.connect() as conn:
+        doc = conn.execute(text("select document_type, extraction_status from app.company_documents")).one()
+    assert tuple(doc) == ("quarterly_results", "pending")
+
+
+def test_one_failing_feed_does_not_stop_the_rest(engine: Engine, clean: None) -> None:
+    rss = FakeRss({"bse_financial_results": [item("bse_financial_results", "https://b/1", "Infosys Limited results")]},
+                  fail={"et_markets_rss"})
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert result.status == "completed_with_errors"
+    assert result.articles_new == 1
+
+
+# ---------------- API ----------------
+
+def test_news_api_filters_paginates_and_attributes(client: TestClient, engine: Engine, clean: None) -> None:
+    rss = FakeRss({"et_markets_rss": [
+        NewsItem("et_markets_rss", f"https://et/{i}", f"Infosys update number {i}", "desc", "The Economic Times",
+                 datetime(2026, 11, 1 + i, 9, 0, tzinfo=UTC))
+        for i in range(5)
+    ]})
+    gdelt = FakeGdelt([item("gdelt", "https://g/q", "query only result")])
+    NewsCollector(engine, sleep=lambda _: None, rss=rss, gdelt=gdelt, feeds=FEEDS, now=NOW).collect()
+
+    page1 = client.get("/stocks/INFY/news", params={"limit": 3}).json()
+    assert [a["headline"] for a in page1["articles"]] == [f"Infosys update number {i}" for i in (4, 3, 2)]
+    assert page1["articles"][0]["source_attribution"] == "Source: The Economic Times."
+    page2 = client.get("/stocks/INFY/news", params={"limit": 3, "before": page1["next_before"]}).json()
+    assert [a["headline"] for a in page2["articles"]] == ["Infosys update number 1", "Infosys update number 0"]
+    assert page2["next_before"] is None
+
+    # Snippet-only mentions (0.6) are shown by default; raising the bar hides them.
+    strict = client.get("/stocks/INFY/news", params={"min_relevance": 0.9, "limit": 50}).json()
+    assert strict["count"] == 0   # these headlines use the one-word name "Infosys" (0.85)
+
+
+def test_news_api_unknown_ticker(client: TestClient) -> None:
+    assert client.get("/stocks/NOSUCHCO/news").status_code == 404
+
+
+GOOGLE_XML = b"""<?xml version="1.0"?><rss version="2.0"><channel><title>Search</title>
+<item><title>Infosys wins $1.5 billion deal from European bank - Moneycontrol</title>
+<link>https://news.google.com/rss/articles/abc?oc=5</link>
+<pubDate>Fri, 20 Nov 2026 10:15:00 GMT</pubDate>
+<description>&lt;a href="https://news.google.com/rss/articles/abc"&gt;Infosys wins&lt;/a&gt;</description>
+<source url="https://www.moneycontrol.com">Moneycontrol</source></item>
+</channel></rss>"""
+
+
+def test_google_news_feed_url_and_parsing() -> None:
+    feed = google_news_feed(["Infosys", "Infosys Limited"], days=3)
+    assert feed.source_code == GOOGLE_NEWS_SOURCE
+    assert "q=%22Infosys%22+OR+%22Infosys+Limited%22+when%3A3d" in feed.url and "gl=IN" in feed.url
+    [got] = parse_feed(GOOGLE_XML, feed)
+    assert got.headline == "Infosys wins $1.5 billion deal from European bank"   # " - Publisher" removed
+    assert got.publisher == "Moneycontrol" and got.snippet is None
+    assert got.published_at == datetime(2026, 11, 20, 10, 15, tzinfo=UTC)
+
+
+def test_google_news_search_runs_per_company_and_keeps_headline_matches(engine: Engine, clean: None) -> None:
+    class SearchRss(FakeRss):
+        def __init__(self) -> None:
+            super().__init__({})
+            self.searched: list[str] = []
+
+        def fetch(self, feed: Feed) -> list[NewsItem]:
+            if feed.source_code != GOOGLE_NEWS_SOURCE:
+                return []
+            self.searched.append(feed.url)
+            return [item(GOOGLE_NEWS_SOURCE, "https://news.google.com/a1", "Infosys shares climb after deal win"),
+                    item(GOOGLE_NEWS_SOURCE, "https://news.google.com/a2", "Nifty IT index ends higher")]
+
+    rss = SearchRss()
+    result = NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    assert len(rss.searched) == 5 and all("when%3A30d" in u for u in rss.searched)  # first run: a month
+    got = {(c, h) for c, h, *_ in links(engine)}
+    assert ("Infosys", "Infosys shares climb after deal win") in got
+    assert not any(h == "Nifty IT index ends higher" for _, h in got)
+    assert result.errors == []
+
+    rss.searched.clear()
+    NewsCollector(engine, sleep=lambda _: None, rss=rss, feeds=FEEDS, now=NOW).collect()
+    infy = [u for u in rss.searched if "Infosys" in u]
+    assert infy and "when%3A3d" in infy[0]   # Infosys now has news: only the last few days
+
+
+@pytest.mark.parametrize("headline, publisher", [
+    ("Infosys Share Price Today, Infosys Stock Price Live NSE/BSE Updates", "The Economic Times"),
+    ("Infosys Share Price - Live NSE: INFY Stock Price & Chart", "Upstox"),
+    ("Reliance Industries Limited (RELIANCE.NS) stock price, news, quote and history", "Yahoo Finance"),
+    ("Tata Consultancy Services (NSEI:TCS) - Stock Analysis", "Simply Wall St"),
+    ("Reliance Industries Limited. Where Innovation Powers", "Facebook"),
+])
+def test_search_results_that_are_not_news_are_skipped(headline: str, publisher: str) -> None:
+    assert is_not_news(NewsItem(source_code="google_news_rss", url="https://x", headline=headline, publisher=publisher))
+
+
+def test_real_headlines_are_not_skipped() -> None:
+    real = NewsItem(source_code="google_news_rss", url="https://x", publisher="Livemint",
+                    headline="Reliance Industries shares slip 2% amid Jio Platforms IPO listing")
+    assert not is_not_news(real)

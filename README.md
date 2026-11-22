@@ -10,8 +10,8 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 |---|---|---|
 | 1 | Database foundation + company search API | ✅ Done |
 | 2 | Market data (prices, basic financials) with provider fallback | ✅ Done |
-| 3 | News and company reports | Next |
-| 4 | AI summaries and sentiment | Planned |
+| 3 | News, exchange filings and company reports | ✅ Done |
+| 4 | AI summaries and sentiment | Next |
 | 5 | Scheduled and on-demand pipelines | Planned |
 | 6 | Power BI dashboards | Planned |
 | 7 | Next.js frontend | Planned |
@@ -33,6 +33,8 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 
 - **One company, many listings.** A company listed on both NSE and BSE is one row in `companies` with two rows in `company_listings`; ISIN sits on the listing because it identifies a security, not a company.
 - **Provider adapters with fallback.** Every data source sits behind one interface. Prices are tried in order (Yahoo Finance → Upstox → EODHD); if one is down or has no data, the next is used, and each stored row records which provider supplied it.
+- **News linked to companies, not just stored.** Headlines from publisher feeds, Google News and BSE filings are matched to companies by name, short name or BSE code, scored for relevance and stored once even when syndicated under several URLs.
+- **Reports as searchable text.** Annual reports and results PDFs are downloaded once, checked by hash, and split into page-referenced chunks ready for AI analysis in Phase 4.
 - **Idempotent by design.** Natural unique keys plus upserts mean a pipeline can be re-run safely.
 - **Private by default.** Application tables live in an `app` schema that Supabase's public API does not expose, with row level security enabled on every table.
 - **Provenance everywhere.** Every fact records its `data_sources` row, including licence and attribution details.
@@ -66,6 +68,8 @@ documentation/      architecture, database, API, decisions, checklist
 | GET | `/stocks/{ticker}?exchange=` | Company details with all listings |
 | GET | `/stocks/{ticker}/prices?start=&end=&exchange=` | Daily OHLCV, each row tagged with its provider |
 | GET | `/stocks/{ticker}/financials?period_type=` | Revenue, net profit, EPS, equity, shares outstanding |
+| GET | `/stocks/{ticker}/news?min_relevance=&before=` | Recent headlines about the company, newest first, with relevance and source |
+| GET | `/stocks/{ticker}/reports?document_type=` | Annual reports, results and filings, with text-extraction status |
 
 Interactive docs at `/docs` when the server is running. Details: [`documentation/api.md`](documentation/api.md).
 
@@ -95,7 +99,8 @@ The database runs on Supabase (free plan). Data collection for the hosted demo r
 
 1. In the repo: **Settings → Secrets and variables → Actions → New repository secret**, name `DATABASE_URL`, value = the Supabase **Session pooler** connection string with your password filled in.
 2. Optional: add `EODHD_API_KEY` the same way to enable the third price source.
-3. **Actions → Collect market data → Run workflow.** It applies any new migrations, loads the seed companies and collects prices and financials. After that it runs by itself every weekday at 19:30 IST.
+3. **Actions → Collect market data and news → Run workflow.** It applies any new migrations, loads the seed companies and collects prices, financials, news and filings. After that it runs by itself every weekday at 19:30 IST.
+4. **Collect news feeds and filings** runs hourly during market hours on weekdays. **Add a company document** adds a report by URL (for example an annual report PDF from the company's investor page) and extracts its text.
 
 ## Data sources
 
@@ -105,6 +110,13 @@ The database runs on Supabase (free plan). Data collection for the hosted demo r
 | Yahoo Finance (`yfinance`) | Prices (primary), financials, dividends and splits | Unofficial; personal and educational use |
 | Upstox historical candles | Prices (fallback 1) | Public endpoint, no key; keyed by ISIN |
 | EODHD free plan | Prices (fallback 2, optional) | Needs a free API key; 20 calls/day, last year only |
+| Economic Times, Mint RSS | Market and company news | Headline, link and the feed's short description only |
+| Google News search RSS | Company news | Headline, publisher and link; only headlines that name the company are kept |
+| GDELT DOC API | Company news (best effort) | Often refuses cloud servers, so a failure is only a warning |
+| BSE RSS feeds | Announcements, results and annual reports | Matched to companies by BSE scrip code |
+| Company investor pages | Annual reports and presentations | Added by URL; text extracted from the PDF |
+
+Article bodies are never stored or republished; the app shows the headline and links to the publisher.
 
 Company financials come from Yahoo only: no free fallback exists, so anything missing stays empty rather than estimated. A scheduled GitHub Actions job (`Live data check`) calls the real providers every weekday evening to catch breakages early.
 
