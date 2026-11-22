@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from backend.core.config import Settings
-from backend.services.status_service import StatusService, _age, _fresh
+from backend.services.status_service import SCHEDULES, StatusService, _age, _fresh, missed_runs, next_run
 
 NOW = datetime(2026, 11, 22, 6, 0, tzinfo=UTC)
 
@@ -52,12 +52,12 @@ def test_problems_are_named() -> None:
                                         "error": "news: gdelt refused"}},
                 last_ok={"scheduled_run": NOW - timedelta(hours=10)})
     checks = {c.name: c for c in service()._checks(bad)}
-    prices, daily = checks["Prices and results"], checks["Daily run (19:30 IST)"]
+    prices, daily = checks["Prices and results"], checks["Daily run (19:30 IST, weekdays)"]
     assert prices.status == "warning" and "2 tracked companies" in prices.detail
     assert checks["News"].status == "failed"
     assert checks["AI (Gemini)"].status == "warning"
     assert daily.status == "warning" and "gdelt refused" in daily.detail
-    assert checks["Hourly news run"].detail == "Hasn't run yet."
+    assert checks["Hourly news run (weekdays, 9:00 to 19:00 IST)"].detail.startswith("Hasn't run yet. Next run")
     no_key = {c.name: c for c in service(None)._checks(facts())}
     assert no_key["AI (Gemini)"].status == "warning" and "No Gemini key" in no_key["AI (Gemini)"].detail
 
@@ -84,3 +84,21 @@ def test_results_check_appears_with_an_indianapi_key() -> None:
     waiting = facts(results_fetch={"last_success": None, "failing": 0, "companies": 0})
     first = {c.name: c for c in StatusService(None, settings, now=NOW)._checks(waiting)}["Company results (IndianAPI)"]
     assert first.status == "warning" and "waiting for its first fetch" in first.detail
+
+
+def test_weekends_are_not_failures() -> None:
+    feeds = SCHEDULES["feeds_run"][1]
+    friday_last = datetime(2026, 11, 20, 13, 40, tzinfo=UTC)          # Fri 19:10 IST, the day's last run
+    sunday = datetime(2026, 11, 22, 13, 18, tzinfo=UTC)               # Sun 18:48 IST
+    assert missed_runs(friday_last, sunday, feeds) == 0
+    assert next_run(sunday, feeds) == datetime(2026, 11, 23, 3, 30, tzinfo=UTC)   # Mon 09:00 IST
+    monday_noon = datetime(2026, 11, 23, 6, 30, tzinfo=UTC)           # Mon 12:00 IST: 09:00 and 10:00 are overdue
+    assert missed_runs(friday_last, monday_noon, feeds) == 2
+    daily = SCHEDULES["scheduled_run"][1]
+    assert missed_runs(datetime(2026, 11, 20, 14, 20, tzinfo=UTC), sunday, daily) == 0
+
+    weekend = facts(jobs={"feeds_run": {"status": "completed", "finished_at": friday_last, "error": None}},
+                    last_ok={"feeds_run": friday_last})
+    check = {c.name: c for c in StatusService(None, service().settings, now=sunday)._checks(weekend)}[
+        "Hourly news run (weekdays, 9:00 to 19:00 IST)"]
+    assert check.status == "ok" and "Next run Mon 23 Nov, 09:00 IST" in check.detail

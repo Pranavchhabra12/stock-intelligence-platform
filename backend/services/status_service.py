@@ -11,6 +11,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import Engine, text
 
@@ -43,6 +44,45 @@ def _fresh(ts: datetime | None, now: datetime, ok_within: timedelta, warn_within
         return "failed"
     age = now - ts
     return "ok" if age <= ok_within else "warning" if age <= warn_within else "failed"
+
+
+IST = ZoneInfo("Asia/Kolkata")
+# When GitHub is due to start each scheduled run: (hour, minute) in UTC on weekdays, matching
+# the cron lines in collect-data.yml and collect-feeds.yml.
+SCHEDULES: dict[str, tuple[str, tuple[tuple[int, int], ...]]] = {
+    "scheduled_run": ("Daily run (19:30 IST, weekdays)", ((14, 0),)),
+    "feeds_run": ("Hourly news run (weekdays, 9:00 to 19:00 IST)", tuple((h, 30) for h in range(3, 14))),
+}
+# GitHub often starts scheduled runs late, so a run counts as missed only after this.
+GITHUB_DELAY = timedelta(minutes=90)
+
+
+def _scheduled(start: datetime, end: datetime, times: tuple[tuple[int, int], ...]) -> list[datetime]:
+    """Scheduled start times in (start, end], weekdays only."""
+    out, day = [], start.date()
+    while day <= end.date():
+        if day.weekday() < 5:
+            for hour, minute in times:
+                t = datetime(day.year, day.month, day.day, hour, minute, tzinfo=UTC)
+                if start < t <= end:
+                    out.append(t)
+        day += timedelta(days=1)
+    return out
+
+
+def missed_runs(last_success: datetime | None, now: datetime, times: tuple[tuple[int, int], ...]) -> int:
+    since = last_success or now - timedelta(days=14)
+    since = max(since, now - timedelta(days=14))
+    return len(_scheduled(since, now - GITHUB_DELAY, times))
+
+
+def next_run(now: datetime, times: tuple[tuple[int, int], ...]) -> datetime:
+    return _scheduled(now, now + timedelta(days=4), times)[0]
+
+
+def _ist(ts: datetime) -> str:
+    local = ts.astimezone(IST)
+    return f"{local:%a %d %b}, {local:%H:%M} IST"
 
 
 class StatusService:
@@ -170,20 +210,25 @@ class StatusService:
                            + (f"{f['latest_tone_day']:%d %b}." if f["latest_tone_day"] else "none yet."),
                            f["latest_ai_at"]))
 
-        for job_type, name, window in (("scheduled_run", "Daily run (19:30 IST)", timedelta(hours=30)),
-                                       ("feeds_run", "Hourly news run", timedelta(hours=3))):
+        for job_type, (name, times) in SCHEDULES.items():
             last, ok_at = f["jobs"].get(job_type), f["last_ok"].get(job_type)
+            upcoming = f" Next run {_ist(next_run(now, times))}."
             if last is None:
-                c.append(Check(name, "warning", "Hasn't run yet."))
+                c.append(Check(name, "warning", "Hasn't run yet." + upcoming))
                 continue
-            status = _fresh(ok_at, now, window, window * 3)
+            # Judge by runs the schedule says should have happened since the last success,
+            # so a quiet weekend isn't a failure.
+            missed = missed_runs(ok_at, now, times)
+            status = "ok" if missed == 0 else "warning" if missed == 1 else "failed"
             if status == "ok" and last["status"] != "completed":
                 status = "warning"
             words = {"completed": "succeeded", "completed_with_errors": "partly succeeded", "failed": "failed"}
             detail = f"Last run {words.get(last['status'], last['status'])} {_age(last['finished_at'], now)}."
+            if missed:
+                detail += f" {missed} scheduled run{'s' if missed > 1 else ''} since then didn't happen."
             if last["status"] != "completed" and last.get("error"):
                 detail += f" {last['error'][:160]}"
-            c.append(Check(name, status, detail, ok_at))
+            c.append(Check(name, status, detail + upcoming, ok_at))
 
         if f["documents_failed"]:
             c.append(Check("Reports", "warning", f"{f['documents_failed']} report(s) couldn't be downloaded or read."))
