@@ -150,13 +150,18 @@ class StatusService:
         if self.settings.indianapi_key:
             r = f["results_fetch"]
             failing = r["failing"] or 0
-            status = "failed" if failing and not r["companies"] else "warning" if failing else \
-                _fresh(r["last_success"], now, timedelta(days=15), timedelta(days=30))
-            c.append(Check("Company results (IndianAPI)", status,
-                           f"Last fetched {_age(r['last_success'], now)}; up to date for {r['companies']} "
-                           f"compan{'y' if r['companies'] == 1 else 'ies'}"
-                           + (f", {failing} failing." if failing else ".")
-                           + " Checked every 2 weeks, every 2 days while results are due.", r["last_success"]))
+            if r["last_success"] is None and not failing:
+                c.append(Check("Company results (IndianAPI)", "warning",
+                               "Set up, waiting for its first fetch: at the next daily run, or straight away "
+                               "when Refresh is tapped on a company in Power BI."))
+            else:
+                status = "failed" if failing and not r["companies"] else "warning" if failing else \
+                    _fresh(r["last_success"], now, timedelta(days=15), timedelta(days=30))
+                c.append(Check("Company results (IndianAPI)", status,
+                               f"Last fetched {_age(r['last_success'], now)}; up to date for {r['companies']} "
+                               f"compan{'y' if r['companies'] == 1 else 'ies'}"
+                               + (f", {failing} failing." if failing else ".")
+                               + " Checked every 2 weeks, every 2 days while results are due.", r["last_success"]))
 
         if not self.settings.gemini_api_key:
             c.append(Check("AI (Gemini)", "warning", "No Gemini key is set, so AI tone and summaries are paused."))

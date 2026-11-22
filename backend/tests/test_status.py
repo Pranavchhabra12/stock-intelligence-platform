@@ -80,3 +80,7 @@ def test_results_check_appears_with_an_indianapi_key() -> None:
     failing = facts(results_fetch={"last_success": NOW - timedelta(days=3), "failing": 2, "companies": 4})
     assert {c.name: c for c in StatusService(None, settings, now=NOW)._checks(failing)}[
         "Company results (IndianAPI)"].status == "warning"
+
+    waiting = facts(results_fetch={"last_success": None, "failing": 0, "companies": 0})
+    first = {c.name: c for c in StatusService(None, settings, now=NOW)._checks(waiting)}["Company results (IndianAPI)"]
+    assert first.status == "warning" and "waiting for its first fetch" in first.detail
