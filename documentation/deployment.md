@@ -2,6 +2,9 @@
 
 Everything runs on free plans.
 
+- Website: https://stock-intelligence-three.vercel.app
+- API: https://stock-intelligence-api-qjn3.onrender.com (interactive docs at `/docs`)
+
 | Part | Host | Notes |
 |---|---|---|
 | Website | Vercel (Hobby) | Next.js, root directory `frontend`, deploys on every push to `main` |
