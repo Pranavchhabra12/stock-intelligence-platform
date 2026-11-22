@@ -140,14 +140,14 @@ def test_summary_points_need_real_pages_and_real_figures() -> None:
     figures = {"162990", "6.1", "21.1", "323578"}
     assert figures <= _figures(source)
     kept, dropped = check_points([
-        {"point": "Revenue reached ₹1,62,990 crore, up 6.1%", "pages": [12]},   # ok
-        {"point": "Net profit was ₹26,713 crore", "pages": [12]},               # figure not in the text
-        {"point": "Margins held up", "pages": [99]},                             # page not given to the model
-        {"point": "Headcount grew", "pages": [12, 99]},                          # one real page is enough
-        {"point": "", "pages": [12]},
-    ], allowed_pages={11, 12, 13}, source_figures=figures)
-    assert kept == [{"point": "Revenue reached ₹1,62,990 crore, up 6.1%", "pages": [12]},
-                    {"point": "Headcount grew", "pages": [12]}]
+        {"point": "Revenue reached ₹1,62,990 crore, up 6.1%", "parts": [1]},    # ok
+        {"point": "Net profit was ₹26,713 crore", "parts": [1]},                # figure not in the text
+        {"point": "Margins held up", "parts": [9]},                              # part not given to the model
+        {"point": "Headcount grew", "parts": [2, 9]},                            # one real part is enough
+        {"point": "", "parts": [1]},
+    ], part_pages={1: range(11, 13), 2: range(40, 41)}, source_figures=figures)
+    assert kept == [{"point": "Revenue reached ₹1,62,990 crore, up 6.1%", "pages": [11, 12]},
+                    {"point": "Headcount grew", "pages": [40]}]
     assert dropped == 3
 
     summary, dropped = check_summary("Revenue grew 6.1%. Profit rose 9.9%. The company is investing in AI.", figures)
@@ -327,10 +327,10 @@ def add_report(engine: Engine) -> None:
 
 SUMMARY = {
     "summary": "Revenue grew 9.6% in the year. Profit rose 15%. The company is focused on AI services.",
-    "key_points": [{"point": "Revenue grew 9.6% to ₹1,78,000 crore", "pages": [2]},
-                   {"point": "Profit of ₹30,000 crore", "pages": [2]},
-                   {"point": "Large deal wins", "pages": [40]}],
-    "risks": [{"point": "Currency movements", "pages": [5]}],
+    "key_points": [{"point": "Revenue grew 9.6% to ₹1,78,000 crore", "parts": [1]},
+                   {"point": "Profit of ₹30,000 crore", "parts": [1]},
+                   {"point": "Large deal wins", "parts": [7]}],
+    "risks": [{"point": "Currency movements", "parts": [2]}],
 }
 
 
@@ -344,8 +344,8 @@ def test_report_summary_is_checked_and_saved_once(engine: Engine, client: TestCl
     assert body["count"] == 1
     report = body["reports"][0]
     assert report["summary"] == "Revenue grew 9.6% in the year. The company is focused on AI services."
-    assert report["key_points"] == [{"point": "Revenue grew 9.6% to ₹1,78,000 crore", "pages": [2]}]
-    assert report["risks"] == [{"point": "Currency movements", "pages": [5]}]
+    assert report["key_points"] == [{"point": "Revenue grew 9.6% to ₹1,78,000 crore", "pages": [1, 2, 3]}]
+    assert report["risks"] == [{"point": "Currency movements", "pages": [4, 5, 6]}]
     assert report["model"] == "fake-model" and "cites its pages" in body["note"]
 
     ai2 = FakeAI(summary=SUMMARY)
@@ -355,7 +355,7 @@ def test_report_summary_is_checked_and_saved_once(engine: Engine, client: TestCl
 
 def test_summary_with_nothing_verifiable_is_not_saved(engine: Engine, clean: None) -> None:
     add_report(engine)
-    made_up = {"summary": "Profit rose 15%.", "key_points": [{"point": "Profit ₹1 lakh crore", "pages": [2]}],
+    made_up = {"summary": "Profit rose 15%.", "key_points": [{"point": "Profit ₹1 lakh crore", "parts": [1]}],
                "risks": []}
     result = AnalysisService(engine, FakeAI(summary=made_up), now=NOW).run()
     assert result.summaries_saved == 0 and "nothing left" in result.errors[0]
@@ -400,3 +400,10 @@ def test_constraints_reject_inconsistent_rows(engine: Engine, clean: None) -> No
                 "insert into app.ai_analyses (company_id, analysis_type, article_id, document_id, status, "
                 f"sentiment_label, sentiment_score, model, prompt_version, input_hash) values (:c, {values}, "
                 "'m', :pv, repeat('c', 64))"), {"c": cid, "a": article, "pv": SENTIMENT_PROMPT_VERSION})
+
+
+def test_report_prompt_numbers_its_parts() -> None:
+    from backend.services.ai_analysis import summary_prompt
+    prompt = summary_prompt("AR", "Infosys", [{"page_from": 5, "page_to": 9, "content": "one"},
+                                                {"page_from": 40, "page_to": 41, "content": "two"}])
+    assert "[part 1]\none" in prompt and "[part 2]\ntwo" in prompt and "pages" not in prompt
