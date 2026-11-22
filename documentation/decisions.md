@@ -37,3 +37,6 @@ Short records of architectural choices and why they were made. The finalised sta
 | 31 | Summary points must cite real pages and real figures | The model only sees selected pages; anything citing other pages, or a number not in that text, is dropped rather than trusted |
 | 32 | Sentiment history only for finished, fully rated days | A run that runs out of budget can't leave a partial day that is then frozen |
 | 33 | Free-tier data terms accepted for this project | Only public news and published reports are sent, never user data |
+| 34 | FastAPI background tasks for refreshes, not a separate worker | One free Render service is enough for a demo; the jobs table keeps the state, and stuck jobs expire |
+| 35 | Cooldown and a cap on active jobs for the public refresh endpoint | The button needs no login, so it must not be able to drain free-tier API quotas |
+| 36 | `run_once` as the only scheduled entry point | GitHub Actions, APScheduler and manual runs all do exactly the same thing and leave the same job record |

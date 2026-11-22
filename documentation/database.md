@@ -67,11 +67,16 @@ Supabase PostgreSQL. Application tables live in the `app` schema; analytics view
 
 Report summaries store `key_points` and `risks` as JSON lists of `{"point", "pages"}`. A summary is redone only when the report file changes (its hash is part of `input_hash`).
 
+## Phase 5 tables
+
+| Table | Purpose | Key constraints |
+|---|---|---|
+| `collection_jobs` | Every refresh and scheduled run, with each step's status and counts (`steps` jsonb) | one pending or running job per company and job type (partial unique index); a company refresh must name its company; `finished_at` is set exactly when the job is done; times in order |
+
 ## Planned tables
 
 | Phase | Tables |
 |---|---|
-| 5 | `collection_jobs` (doubles as the job queue) |
 | 6 | `powerbi_refresh_queue` (optional), `analytics` views |
 
 ## Migrations

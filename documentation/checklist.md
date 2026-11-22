@@ -58,6 +58,17 @@
 
 **Phase 4 acceptance criteria (blueprint):** AI summaries generated from stored content ✅ · sentiment per article and per company ✅ · model and prompt version recorded ✅ · AI never produces financial figures ✅ · history kept, not overwritten ✅
 
+## Phase 5: Pipelines ✅
+
+- [x] Migration 0010: `collection_jobs` with one active job per company and type
+- [x] Shared pipeline: prices → news → documents → AI, each step isolated and saved as it finishes
+- [x] `POST /stocks/{ticker}/refresh` (background task, cooldown, busy limit), `GET /jobs/{job_id}`, `GET /stocks/{ticker}/jobs`
+- [x] Stuck jobs expire after 45 minutes
+- [x] `backend.scheduler.run_once` (daily, hourly feeds, chosen companies) and `backend.scheduler.local` (APScheduler)
+- [x] Both GitHub Actions schedules now call the same pipeline
+
+**Phase 5 acceptance criteria (blueprint):** refresh on demand without blocking ✅ · job status visible ✅ · duplicate jobs prevented ✅ · scheduled runs automated ✅ · failures recorded, not hidden ✅
+
 ## Later phases
 
 See the project plan: automation (5), Power BI (6), frontend (7), testing and deployment (8).

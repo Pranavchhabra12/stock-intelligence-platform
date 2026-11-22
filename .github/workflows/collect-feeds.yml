@@ -1,8 +1,8 @@
-name: Collect news feeds and filings
+name: Collect news feeds, filings and AI sentiment
 
 # BSE's filing feeds only list the latest few items, so they are read every hour
-# during market hours (09:00-19:00 IST, weekdays). Publisher RSS feeds come along.
-# GDELT search and prices run in the daily "Collect market data and news" workflow.
+# during market hours (09:00-19:00 IST, weekdays), with publisher feeds, Google News
+# search and AI sentiment for anything new. Prices and GDELT run in the daily workflow.
 on:
   schedule:
     - cron: "30 3-13 * * 1-5"   # :00 past each hour, 09:00-19:00 IST
@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 15
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       LOG_LEVEL: WARNING
     steps:
       - uses: actions/checkout@v4
@@ -28,4 +29,4 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
       - run: alembic upgrade head
-      - run: python -m backend.collect_news --all --no-gdelt
+      - run: python -m backend.scheduler.run_once --feeds

@@ -45,10 +45,20 @@ ai_analyses ─► finished, fully rated days ─► sentiment_history (written 
 
 ## Pipelines (Phase 5)
 
-One pipeline, two triggers:
+One pipeline (`backend/services/pipeline.py`), three triggers, every run recorded in `collection_jobs`:
 
-- **On demand:** `POST /stocks/{ticker}/refresh` saves a `pending` row in `collection_jobs` and returns a `job_id`; a background task does the work; the frontend polls `GET /jobs/{job_id}`. A partial unique index allows only one active job per company and job type.
-- **Scheduled:** `python -m backend.scheduler.run_once`. APScheduler calls it locally; in the hosted demo a GitHub Actions workflow runs it once a day after market close. (Free Render instances sleep after 15 minutes idle, so an in-process scheduler cannot run there.)
+| Trigger | Job type | Steps | Runs |
+|---|---|---|---|
+| `POST /stocks/{ticker}/refresh` | `company_refresh` | prices → news → documents → AI | in the API, as a background task |
+| Daily schedule | `scheduled_run` | the same, for every company, plus GDELT | weekdays 19:30 IST |
+| Hourly schedule | `feeds_run` | news → documents → AI | weekdays 09:00–19:00 IST |
+
+- The refresh endpoint saves a `pending` job and returns it at once; the client polls `GET /jobs/{job_id}`, which shows each step as it finishes.
+- A partial unique index allows one pending or running job per company and job type, so double clicks and overlapping schedules can't start a second one.
+- A refresh that finished within the cooldown (15 minutes) is returned instead of starting another; failed ones can be retried at once. At most three jobs run at a time.
+- Each step is isolated: a crash is recorded on that step and the next one still runs.
+- A job stuck in `running` (say, the server restarted) is marked failed after 45 minutes, so it can't block its company.
+- Schedules: `python -m backend.scheduler.run_once` is the single entry point. In the hosted demo GitHub Actions calls it; locally `python -m backend.scheduler.local` runs both schedules with APScheduler. (Free Render instances sleep after 15 minutes idle, so an in-process scheduler can't run there.)
 
 ## Hosting (free tiers)
 
