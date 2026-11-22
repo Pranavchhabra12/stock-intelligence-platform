@@ -533,7 +533,14 @@ html[data-scrolled="true"] .site-header { box-shadow: 0 1px 0 var(--line), 0 8px
 .statement { width: 100%; border-collapse: collapse; min-width: 34rem; }
 .statement th, .statement td { padding: 0.55rem 0.75rem; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .statement thead th { font-family: var(--font-display); font-weight: 600; color: var(--ink-2); border-bottom: 1.5px solid var(--ink); }
-.statement th[scope="row"], .statement thead th:first-child { text-align: left; font-family: var(--font-body); font-weight: 500; color: var(--ink); position: sticky; left: 0; background: var(--paper); }
+.statement th[scope="row"], .statement thead th:first-child {
+  text-align: left; font-family: var(--font-body); font-weight: 500; color: var(--ink);
+  position: sticky; left: 0; z-index: 1; background: var(--paper);
+  /* a visible edge, so numbers sliding underneath don't look cut off */
+  box-shadow: 1px 0 0 var(--line), 8px 0 10px -8px rgb(28 35 51 / 0.28);
+}
+.scroll-hint { display: none; margin-top: 0.5rem; }
+@media (max-width: 40rem) { .scroll-hint { display: block; } }
 
 /* news */
 .news { list-style: none; margin: 0; padding: 0; }
@@ -718,3 +725,25 @@ html { scroll-behavior: smooth; scroll-padding-top: calc(var(--sticky-top) + 3.5
   background: color-mix(in oklab, var(--up) 10%, var(--paper));
   border-radius: 999px; padding: 0.05rem 0.5rem;
 }
+
+/* ---------- status page ---------- */
+
+.status-page { padding: clamp(2rem, 6vw, 3.5rem) 0; max-width: 46rem; }
+.status-page h1 { font-size: clamp(2.25rem, 6vw, 3.25rem); }
+.status-page .lede { margin-top: 0.75rem; }
+.status-list { list-style: none; margin: 2rem 0 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.status-row { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.75rem; padding: 0.9rem 0; border-bottom: 1px solid var(--line); }
+.status-mark {
+  width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; font-size: 0.9rem; color: #fff; background: var(--muted); margin-top: 0.1rem;
+}
+.status-row[data-status="ok"] .status-mark { background: var(--up); }
+.status-row[data-status="warning"] .status-mark { background: var(--marigold); color: var(--ink); }
+.status-row[data-status="failed"] .status-mark { background: var(--down); }
+.status-name { font-weight: 600; font-size: var(--step-1); }
+.status-word { font-weight: 500; font-size: var(--step--1); color: var(--muted); margin-left: 0.4rem; }
+.status-row[data-status="failed"] .status-word { color: var(--down); }
+.status-detail { color: var(--ink-2); font-size: var(--step--1); margin-top: 0.15rem; }
+.status-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; margin: 2rem 0 0; }
+.status-facts dt { color: var(--muted); font-size: var(--step--1); }
+.status-facts dd { margin: 0.15rem 0 0; font-size: var(--step-2); }

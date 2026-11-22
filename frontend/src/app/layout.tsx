@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               sources credited on each page. News tone and report summaries are produced by AI and can be wrong; check
               the original before relying on them.
             </p>
-            <p>Built with Next.js, FastAPI and Postgres.</p>
+            <p>Built with Next.js, FastAPI and Postgres. <a href="/status">System status</a></p>
           </div>
         </footer>
       </body>
