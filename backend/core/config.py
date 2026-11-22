@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Phase 2: market data. Providers are tried in this order for prices.
     market_data_providers: str = "yfinance,upstox,eodhd"
     eodhd_api_key: SecretStr | None = None
+    # IndianAPI.in: company results (quarterly and annual). Optional; Yahoo is used without it.
+    indianapi_key: SecretStr | None = None
     price_backfill_years: int = Field(default=5, ge=1, le=20)
 
     # Phase 4: AI analysis. Without a key, analysis is skipped and everything else still works.

@@ -26,5 +26,7 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: INDIANAPI_KEY     # company results; the refresh button uses it too
+        sync: false
       - key: INTERNAL_API_KEY  # same value as on Vercel, so page renders aren't rate limited as one client
         sync: false

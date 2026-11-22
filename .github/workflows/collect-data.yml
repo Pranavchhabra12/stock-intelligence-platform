@@ -24,6 +24,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      INDIANAPI_KEY: ${{ secrets.INDIANAPI_KEY }}
       LOG_LEVEL: WARNING
     steps:
       - name: Check the database secret is set

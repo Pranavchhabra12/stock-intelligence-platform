@@ -8,7 +8,10 @@ Idempotent and incremental:
 - if a NEW split or bonus appears, the whole history is re-fetched, because the
   provider has rescaled every earlier price;
 - each step runs in its own transaction, so one failing step does not undo the
-  others, and the result records what failed.
+  others, and the result records what failed;
+- company results come from IndianAPI when its key is set, otherwise Yahoo. IndianAPI's free
+  plan is 500 requests a month, so it is asked only for companies in Power BI, and only when
+  due: every 14 days, or every 2 days while a quarter's results are expected.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -29,6 +32,13 @@ from backend.providers.market_data.fallback import FallbackMarketDataProvider
 logger = logging.getLogger(__name__)
 
 Status = Literal["completed", "completed_with_errors", "failed"]
+
+RATIONED_RESULTS = "indianapi"
+RESULTS_RECHECK = timedelta(days=14)
+RESULTS_RECHECK_WHEN_EXPECTED = timedelta(days=2)
+# Days after the newest stored quarter's end when the next quarter's results are expected
+# (a quarter is 91 days, and companies report within about 45 days of it ending).
+RESULTS_EXPECTED_AFTER_DAYS = 105
 
 
 @dataclass
@@ -46,13 +56,15 @@ class CollectionResult:
 
 class MarketDataCollector:
     def __init__(
-        self, engine: Engine, provider: MarketDataProvider, backfill_years: int = 5, today: date | None = None
+        self, engine: Engine, provider: MarketDataProvider, backfill_years: int = 5, today: date | None = None,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self.engine = engine
         self.chain = provider if isinstance(provider, FallbackMarketDataProvider) \
             else FallbackMarketDataProvider([provider])
         self.backfill_years = backfill_years
         self.today = today or date.today()
+        self.now = now or (lambda: datetime.now(UTC))
 
     @property
     def backfill_start(self) -> date:
@@ -146,8 +158,55 @@ class MarketDataCollector:
 
         self._step(result, f"{label} prices", prices)
 
+    def _results_due(self, company_id: UUID) -> bool:
+        """Should the rationed results provider be asked about this company now?"""
+        if RATIONED_RESULTS not in [p.source_code for p in self.chain.results_first]:
+            return False
+        with self.engine.connect() as conn:
+            row = conn.execute(text(
+                """
+                select c.is_tracked,
+                  (select last_attempt_at from app.provider_fetches f
+                    where f.company_id = c.company_id and f.source_id = :sid and f.what = 'financials') as last,
+                  (select max(period_end) from app.financial_periods p
+                    where p.company_id = c.company_id and p.source_id = :sid and p.period_type = 'quarterly') as newest
+                from app.companies c where c.company_id = :cid
+                """), {"cid": company_id, "sid": self.source_ids[RATIONED_RESULTS]}).mappings().first()
+        if row is None or not row["is_tracked"]:
+            return False
+        if row["last"] is None:
+            return True
+        expected = row["newest"] is None or (self.today - row["newest"]).days > RESULTS_EXPECTED_AFTER_DAYS
+        wait = RESULTS_RECHECK_WHEN_EXPECTED if expected else RESULTS_RECHECK
+        return self.now() - row["last"] >= wait
+
+    def _record_fetch(self, company_id: UUID, source: str, error: str | None) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(text(
+                """
+                insert into app.provider_fetches as f
+                  (company_id, source_id, what, last_attempt_at, last_success_at, last_error, attempts)
+                values (:cid, :sid, 'financials', :now,
+                        case when cast(:err as text) is null then cast(:now as timestamptz) end, :err, 1)
+                on conflict (company_id, source_id, what) do update set
+                  last_attempt_at = excluded.last_attempt_at,
+                  last_success_at = coalesce(excluded.last_success_at, f.last_success_at),
+                  last_error = excluded.last_error,
+                  attempts = f.attempts + 1
+                """), {"cid": company_id, "sid": self.source_ids[source], "now": self.now(), "err": error})
+
     def _collect_financials(self, company_id: UUID, key: ListingKey, result: CollectionResult) -> None:
-        source, periods = self.chain.first_available("financials", lambda p: p.get_financials(key))
+        due = self._results_due(company_id)
+        skip = frozenset() if due else frozenset({RATIONED_RESULTS})
+        errors: dict[str, str] = {}
+        source = None
+        try:
+            source, periods = self.chain.first_available(
+                "financials", lambda p: p.get_financials(key), self.chain.financial_providers, skip,
+                on_error=lambda code, message: errors.__setitem__(code, message))
+        finally:
+            if due and (source == RATIONED_RESULTS or RATIONED_RESULTS in errors):
+                self._record_fetch(company_id, RATIONED_RESULTS, errors.get(RATIONED_RESULTS))
         with self.engine.begin() as conn:
             repo = MarketDataRepository(conn)
             for period in periods:
