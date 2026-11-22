@@ -50,6 +50,8 @@ class CompanyDetail(BaseModel):
     is_active: bool
     is_tracked: bool = False
     tracked_at: datetime | None = None
+    untracked_at: datetime | None = Field(None, description="When it was last removed from Power BI")
+    can_remove: bool = Field(False, description="In Power BI and added by a visitor; the starting companies stay")
     updated_at: datetime
     listings: list[Listing]
     aliases: list[str]
@@ -78,6 +80,15 @@ class OverviewResponse(BaseModel):
     cap: int = Field(..., description="How many companies Power BI can follow in this demo")
     tone_days: int
     companies: list[CompanyOverview]
+
+
+class UntrackResponse(BaseModel):
+    company_id: UUID
+    company_name: str
+    is_tracked: bool
+    removed: bool = Field(..., description="False when the company wasn't in Power BI")
+    tracked_count: int
+    cap: int
 
 
 class TrackResponse(BaseModel):

@@ -69,11 +69,10 @@ def default_steps(engine: Engine, settings: Settings, use_gdelt: bool = False) -
                                           "order by company_name")).scalars())
 
     def prices(ids: list[UUID] | None) -> tuple[StepStatus, dict]:
-        from backend.providers.market_data import build_market_data_provider
+        from backend.providers.market_data import provider_from_settings
         from backend.services.market_data import MarketDataCollector
 
-        key = settings.eodhd_api_key.get_secret_value() if settings.eodhd_api_key else None
-        collector = MarketDataCollector(engine, build_market_data_provider(settings.market_data_provider_codes, key),
+        collector = MarketDataCollector(engine, provider_from_settings(settings),
                                         backfill_years=settings.price_backfill_years)
         results = [collector.collect_company(cid) for cid in company_ids_or_all(ids)]
         detail = {"companies": len(results), "prices_upserted": sum(r.prices_upserted for r in results),

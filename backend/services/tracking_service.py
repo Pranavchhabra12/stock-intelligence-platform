@@ -18,6 +18,11 @@ class LimitReachedError(AppError):
     code = "limit_reached"
 
 
+class ProtectedCompanyError(AppError):
+    status_code = 409
+    code = "protected"
+
+
 class TrackingService:
     def __init__(self, engine: Engine, cap: int) -> None:
         self.engine = engine
@@ -41,6 +46,24 @@ class TrackingService:
                     f"Power BI already follows {count} companies, the most this free demo allows.",
                     {"tracked": count, "cap": self.cap})
             conn.execute(text(
-                "update app.companies set is_tracked = true, tracked_at = now(), tracked_via = :via "
-                "where company_id = :id"), {"id": company_id, "via": via})
+                "update app.companies set is_tracked = true, tracked_at = now(), tracked_via = :via, "
+                "untracked_at = null where company_id = :id"), {"id": company_id, "via": via})
             return True, count + 1
+
+    def untrack(self, company_id: UUID) -> tuple[bool, int]:
+        """Returns (removed now, companies tracked now). The company's stored data stays, so adding
+        it back later picks up where it left off; it just stops being collected and analysed.
+        The starting companies can't be removed, so the dashboard is never left empty."""
+        with self.engine.begin() as conn:
+            conn.execute(text("select pg_advisory_xact_lock(:k)"), {"k": _TRACK_LOCK})
+            row = conn.execute(text("select is_tracked, tracked_via from app.companies where company_id = :id"),
+                               {"id": company_id}).mappings().one()
+            count = conn.execute(text("select count(*) from app.companies where is_tracked")).scalar_one()
+            if not row["is_tracked"]:
+                return False, count
+            if row["tracked_via"] == "seed":
+                raise ProtectedCompanyError("This is one of the starting companies, so it stays in Power BI.")
+            conn.execute(text(
+                "update app.companies set is_tracked = false, untracked_at = now() where company_id = :id"),
+                {"id": company_id})
+            return True, count - 1

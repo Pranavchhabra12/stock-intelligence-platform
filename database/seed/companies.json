@@ -43,6 +43,17 @@
       "license_notes": "Free plan: 20 calls/day, last year only. Last-resort fallback; needs EODHD_API_KEY."
     },
     {
+      "source_code": "indianapi",
+      "source_name": "IndianAPI.in Indian Stock API (free plan)",
+      "source_type": "market_data",
+      "base_url": "https://indianapi.in",
+      "terms_url": null,
+      "attribution_required": true,
+      "attribution_text": "Company results: IndianAPI.in. For educational use only.",
+      "redistribution_allowed": null,
+      "license_notes": "Quarterly and annual results (figures in INR crore, stored in rupees). Free plan: 500 requests a month, so results are fetched only when due."
+    },
+    {
       "source_code": "gdelt",
       "source_name": "GDELT DOC 2.0 news search",
       "source_type": "news",
