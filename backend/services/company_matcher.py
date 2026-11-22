@@ -64,7 +64,9 @@ class CompanyMatcher:
             ))
 
     @classmethod
-    def from_database(cls, conn: Connection) -> CompanyMatcher:
+    def from_database(cls, conn: Connection, include: list | None = None) -> CompanyMatcher:
+        """Tracked companies, plus any others named in `include` (a one-off refresh of an
+        untracked company). Matching all ~2,000 listed companies would link far too much news."""
         rows = conn.execute(text(
             """
             select c.company_id, c.news_exclude_phrases,
@@ -75,10 +77,10 @@ class CompanyMatcher:
                    array_agg(a.alias) filter (where a.alias_type in ('abbreviation', 'symbol')) as abbreviations
             from app.companies c
             left join app.company_aliases a using (company_id)
-            where c.is_active
+            where c.is_tracked or c.company_id = any(cast(:include as uuid[]))
             group by c.company_id
             """
-        )).mappings()
+        ), {"include": list(include or [])}).mappings()
         companies = []
         for r in rows:
             names = [n for n in (r["names"] or []) if len(n) >= 4]

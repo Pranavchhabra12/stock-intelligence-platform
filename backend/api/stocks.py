@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Annotated, Literal
 
@@ -9,20 +10,24 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Response
 from sqlalchemy.engine import Connection
 
 from backend.api.jobs import JobServiceDep
+from backend.core.config import get_settings
 from backend.core.errors import NotFoundError
-from backend.database.connection import get_connection
+from backend.database.connection import get_connection, get_engine
 from backend.database.repositories import CompanyRepository
-from backend.schemas.company import CompanyDetail, Exchange, OverviewResponse, SearchResponse
+from backend.schemas.company import CompanyDetail, Exchange, OverviewResponse, SearchResponse, TrackResponse
 from backend.schemas.content import AnalysisResponse, NewsResponse, ReportsResponse, SentimentResponse
 from backend.schemas.errors import ErrorResponse
 from backend.schemas.jobs import Job, JobListResponse, RefreshResponse
 from backend.schemas.market import FinancialsResponse, PriceHistoryResponse, SummaryResponse
+from backend.schemas.page import CompanyPage, Tracking
 from backend.services.company_service import CompanyService
 from backend.services.content_query_service import ContentQueryService
 from backend.services.market_query_service import MarketQueryService
 from backend.services.overview_service import OverviewService
+from backend.services.tracking_service import TrackingService
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
+logger = logging.getLogger(__name__)
 
 DbConnection = Annotated[Connection, Depends(get_connection)]
 Ticker = Annotated[str, Path(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9&.\-]+$",
@@ -46,8 +51,8 @@ def _company_id(conn: Connection, ticker: str):  # noqa: ANN202
 
 @router.get("", response_model=OverviewResponse)
 def list_companies(conn: DbConnection) -> OverviewResponse:
-    """Every tracked company with its latest close, day change and 30 days of news tone."""
-    return OverviewService(conn).companies()
+    """Every company in Power BI (tracked), with its latest close, day change and 30 days of news tone."""
+    return OverviewService(conn, get_settings().max_tracked_companies).companies()
 
 
 @router.get("/search", response_model=SearchResponse, responses=_ERRORS)
@@ -188,3 +193,65 @@ def get_summary(conn: DbConnection, ticker: Ticker, exchange: ExchangeParam = No
     what it was based on, and missing ones say why.
     """
     return MarketQueryService(conn).summary(ticker, exchange)
+
+
+@router.get("/{ticker}/page", response_model=CompanyPage, responses=_ERRORS)
+def get_company_page(conn: DbConnection, ticker: Ticker, service: JobServiceDep) -> CompanyPage:
+    """Everything the website's company page shows, in one request: details, key numbers,
+    a year of prices, results, news, tone, report summaries, documents and the latest refresh.
+
+    A section that fails is left out (and named in `missing`) rather than failing the page.
+    """
+    company = CompanyService(conn).get_by_ticker(ticker)
+    market, content = MarketQueryService(conn), ContentQueryService(conn)
+    missing: list[str] = []
+
+    def section(name: str, load):  # noqa: ANN001, ANN202
+        try:
+            with conn.begin_nested():   # a failed query can't spoil the ones after it
+                return load()
+        except Exception:  # noqa: BLE001
+            logger.exception("page_section_failed", extra={"ticker": ticker, "section": name})
+            missing.append(name)
+            return None
+
+    jobs = section("last_job", lambda: service.recent(company.company_id, 1))
+    settings = get_settings()
+    return CompanyPage(
+        company=company,
+        summary=section("summary", lambda: market.summary(ticker, None)),
+        prices=section("prices", lambda: market.prices(ticker, None, None, None)),
+        quarterly=section("quarterly", lambda: market.financials(ticker, "quarterly", 8)),
+        annual=section("annual", lambda: market.financials(ticker, "annual", 5)),
+        news=section("news", lambda: content.news(ticker, 20, 0.5, None)),
+        sentiment=section("sentiment", lambda: content.sentiment(ticker, 30)),
+        analysis=section("analysis", lambda: content.analysis(ticker)),
+        reports=section("reports", lambda: content.reports(ticker, None)),
+        last_job=Job(**jobs[0]) if jobs else None,
+        tracking=Tracking(tracked_count=TrackingService(get_engine(), settings.max_tracked_companies).count(),
+                          cap=settings.max_tracked_companies),
+        missing=missing,
+    )
+
+
+@router.post("/{ticker}/track", response_model=TrackResponse, responses={
+    **_ERRORS, 409: {"model": ErrorResponse, "description": "Power BI already follows the most companies allowed"}})
+def track_company(
+    conn: DbConnection, ticker: Ticker, service: JobServiceDep, background: BackgroundTasks,
+) -> TrackResponse:
+    """Add a company to Power BI: it is then collected every day and analysed by AI.
+
+    Anyone can add one, up to `MAX_TRACKED_COMPANIES`. A newly added company gets a full
+    refresh straight away (AI included) when there's room to run one.
+    """
+    company_id, name = _company_id(conn, ticker)
+    conn.rollback()   # release this read-only transaction before taking the tracking lock
+    settings = get_settings()
+    created, count = TrackingService(get_engine(), settings.max_tracked_companies).track(company_id)
+    job_id = None
+    if created:
+        job_id = service.create_company_job(company_id, "api")
+        if job_id:
+            background.add_task(service.run, job_id)
+    return TrackResponse(company_id=company_id, company_name=name, is_tracked=True, created=created,
+                         tracked_count=count, cap=settings.max_tracked_companies, job_id=job_id)

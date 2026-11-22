@@ -8,6 +8,7 @@ import { fmtDate, plain, signed } from "@/lib/format";
 
 interface Overview {
   count: number;
+  cap: number;
   tone_days: number;
   companies: {
     company_id: string;
@@ -40,10 +41,10 @@ export default async function Home() {
             NSE and BSE.
           </p>
           <SearchBox autoFocus />
-          <p className="hint">Try “RIL”, “Infosys” or a BSE code like 500325.</p>
+          <p className="hint">All NSE-listed companies. Try “Tata Motors”, “ITC” or “RIL”.</p>
         </div>
         {featured && (
-          <Link className="featured" href={`/stocks/${encodeURIComponent(featured.symbol)}`}>
+          <Link className="featured" prefetch={false} href={`/stocks/${encodeURIComponent(featured.symbol)}`}>
             <span className="why">Biggest move{featured.trade_date ? ` on ${fmtDate(featured.trade_date)}` : ""}</span>
             <p className="name">{featured.company_name}</p>
             <div className="row">
@@ -62,7 +63,13 @@ export default async function Home() {
 
       <section aria-labelledby="board-h">
         <div className="board-head">
-          <h2 id="board-h">Companies tracked</h2>
+          <div>
+            <h2 id="board-h">In Power BI</h2>
+            <p className="small muted">
+              {overview ? `${overview.count} of ${overview.cap} companies, collected every day. ` : ""}Open any other
+              company from search and add it with “Add to Power BI”.
+            </p>
+          </div>
           {latest && <p className="small muted">Closing prices for {fmtDate(latest)}</p>}
         </div>
         {!overview ? (
@@ -83,7 +90,7 @@ export default async function Home() {
                 {overview.companies.map((c) => (
                   <tr key={c.company_id}>
                     <td className="company">
-                      <Link href={`/stocks/${encodeURIComponent(c.symbol)}`}>{c.company_name}</Link>
+                      <Link prefetch={false} href={`/stocks/${encodeURIComponent(c.symbol)}`}>{c.company_name}</Link>
                       <span className="sub">{c.exchange}: {c.symbol}<span className="hide-sm">{c.sector ? `, ${c.sector}` : ""}</span></span>
                     </td>
                     <td className="right num price">{c.close != null ? plain(c.close) : "—"}</td>

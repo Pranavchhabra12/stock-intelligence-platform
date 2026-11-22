@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash-lite"
     ai_max_requests_per_run: int = Field(default=40, ge=1, le=500)
 
+    # Companies followed daily and included in Power BI; visitors can add up to this many.
+    max_tracked_companies: int = Field(default=25, ge=1, le=500)
+
     # Phase 5: on-demand refresh jobs
     refresh_cooldown_minutes: int = Field(default=15, ge=0, le=1440)   # reuse a refresh this recent
     max_active_jobs: int = Field(default=3, ge=1, le=20)               # across all companies

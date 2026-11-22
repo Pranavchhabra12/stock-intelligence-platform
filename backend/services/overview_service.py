@@ -15,8 +15,9 @@ TONE_DAYS = 30
 
 
 class OverviewService:
-    def __init__(self, conn: Connection) -> None:
+    def __init__(self, conn: Connection, cap: int = 25) -> None:
         self.conn = conn
+        self.cap = cap
 
     def companies(self, today: date | None = None) -> OverviewResponse:
         today = today or date.today()
@@ -35,7 +36,7 @@ class OverviewService:
               from app.daily_prices where listing_id = l.listing_id
               order by trade_date desc limit 2
             ) p on true
-            where c.is_active
+            where c.is_tracked
             """
         )).mappings().all()
         latest = {}
@@ -64,4 +65,4 @@ class OverviewService:
                 change_pct=round((close - prev) / prev * 100, 2) if close and prev else None,
                 tone_30d=tone.get(r["company_id"], []),
             ))
-        return OverviewResponse(count=len(companies), tone_days=TONE_DAYS, companies=companies)
+        return OverviewResponse(count=len(companies), cap=self.cap, tone_days=TONE_DAYS, companies=companies)
