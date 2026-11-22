@@ -40,7 +40,7 @@ ai_analyses ─► finished, fully rated days ─► sentiment_history (written 
 
 - Headlines and report text are sent as marked-off data, and the prompt tells the model to ignore instructions inside them.
 - A sentiment answer is rejected if its label and score disagree or are out of range.
-- A summary point is dropped if it cites a page the model wasn't given, or uses a figure that isn't in the text.
+- Report text is sent as numbered parts; the model cites parts, which are stored as the PDF pages they cover (printed page numbers in reports often differ). A point is dropped if it cites a part the model wasn't given, or uses a figure that isn't in the text.
 - Each run has a request budget (`AI_MAX_REQUESTS_PER_RUN`); whatever is left is picked up next run. A bad key stops the run after one request.
 
 ## Pipelines (Phase 5)
