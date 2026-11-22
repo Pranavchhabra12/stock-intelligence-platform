@@ -29,7 +29,7 @@ def test_gemini_rates_headlines() -> None:
         {"company_name": "TCS", "headline": "TCS board to meet on January 9 to consider results", "snippet": None},
     ]
     got = client.generate_json(SENTIMENT_SYSTEM, sentiment_prompt(items), SENTIMENT_SCHEMA)
-    print(f"model={got.model} tokens in/out={got.input_tokens}/{got.output_tokens} legacy={client._legacy_format}")
+    print(f"model={got.model} tokens in/out={got.input_tokens}/{got.output_tokens} new_format={client._new_format}")
     by_id = {r["id"]: r for r in got.data["results"]}
     for i, it in enumerate(items):
         print(it["headline"], "->", by_id.get(str(i)))

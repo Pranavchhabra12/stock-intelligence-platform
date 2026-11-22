@@ -186,22 +186,24 @@ def test_gemini_request_and_response() -> None:
     assert got.data == {"ok": True} and (got.input_tokens, got.output_tokens) == (12, 5)
     assert seen["url"].endswith("/models/gemini-test:generateContent") and seen["key"] == "test-key"
     assert seen["body"]["systemInstruction"]["parts"][0]["text"] == "system"
-    assert seen["body"]["generationConfig"]["responseFormat"]["text"]["mimeType"] == "application/json"
+    config = seen["body"]["generationConfig"]
+    assert config["responseMimeType"] == "application/json" and config["responseJsonSchema"] == {"type": "object"}
 
 
-def test_gemini_falls_back_to_the_older_structured_output_field() -> None:
+def test_gemini_switches_to_the_newer_structured_output_field_if_needed() -> None:
     bodies = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         bodies.append(body["generationConfig"])
-        if "responseFormat" in body["generationConfig"]:
-            return httpx.Response(400, json={"error": {"message": 'Unknown name "responseFormat"'}})
+        if "responseJsonSchema" in body["generationConfig"]:
+            return httpx.Response(400, json={"error": {"message": "Invalid JSON payload. Unknown name "
+                                                                 '"response_json_schema"'}})
         return httpx.Response(200, json=answer('{"ok": 1}'))
 
     client = gemini(handler)
     assert client.generate_json("s", "p", {}).data == {"ok": 1}
-    assert "responseJsonSchema" in bodies[-1]
+    assert "responseFormat" in bodies[-1]
     client.generate_json("s", "p", {})
     assert len(bodies) == 3   # remembered: no second failed attempt
 

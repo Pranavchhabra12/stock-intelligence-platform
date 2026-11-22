@@ -23,6 +23,8 @@ from backend.providers.retry import CallPolicy
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+# Error text naming the long-standing JSON-output fields (either spelling)
+_OLD_FIELDS = re.compile(r"response_?mime_?type|response_?json_?schema", re.I)
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$")
 
 
@@ -49,17 +51,18 @@ class GeminiClient:
         # Free-tier limits are a few requests a minute; spacing calls avoids most 429s,
         # and a 429 is retried after 15s, then 30s.
         self.policy = CallPolicy(self.source_code, min_interval_seconds, max_attempts, sleep, backoff_base=15.0)
-        # Gemini has two spellings for structured output; use the newer one and fall
-        # back once if this API version rejects it.
-        self._legacy_format = False
+        # Gemini has two ways to ask for JSON output. The long-standing one
+        # (responseMimeType + responseJsonSchema) is tried first; if the API rejects it,
+        # the newer responseFormat block is used from then on.
+        self._new_format = False
         self.requests_made = 0
 
     def _body(self, system: str, prompt: str, schema: dict) -> dict:
         config: dict[str, Any] = {"temperature": 0.2}
-        if self._legacy_format:
-            config |= {"responseMimeType": "application/json", "responseJsonSchema": schema}
-        else:
+        if self._new_format:
             config["responseFormat"] = {"text": {"mimeType": "application/json", "schema": schema}}
+        else:
+            config |= {"responseMimeType": "application/json", "responseJsonSchema": schema}
         return {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -70,9 +73,9 @@ class GeminiClient:
         url = f"{API_BASE}/models/{self.model}:generateContent"
         self.requests_made += 1
         response = self.client.post(url, json=self._body(system, prompt, schema), headers={"x-goog-api-key": self._key})
-        if response.status_code == 400 and not self._legacy_format and "responseFormat" in response.text:
+        if response.status_code == 400 and not self._new_format and _OLD_FIELDS.search(response.text):
             logger.info("gemini_structured_output_fallback")
-            self._legacy_format = True
+            self._new_format = True
             return self._post(system, prompt, schema)
         if response.status_code in (400, 401, 403, 404):
             # Bad request, bad key or unknown model: retrying won't help. The body never contains the key.
