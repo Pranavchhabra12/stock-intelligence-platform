@@ -7,13 +7,11 @@ import NewsList from "@/components/NewsList";
 import PriceChart from "@/components/PriceChart";
 import QuoteBar from "@/components/QuoteBar";
 import RefreshPanel from "@/components/RefreshPanel";
+import TrackButton from "@/components/TrackButton";
 import ToneLegend from "@/components/ToneLegend";
 import ToneStrip from "@/components/ToneStrip";
 import { toneWord } from "@/lib/tone";
-import {
-  type Analysis, ApiError, type CompanyDetail, type Financials, type JobList, maybe, type News, type Prices,
-  type Reports, type SentimentHistory, type Summary, companyTag,
-} from "@/lib/api";
+import { ApiError, type CompanyPage as PageData, companyTag, maybe } from "@/lib/api";
 import { fmtDate, metricValue, rupees, signed } from "@/lib/format";
 
 type Params = { params: Promise<{ ticker: string }> };
@@ -31,23 +29,14 @@ const KEY_ORDER = ["market_cap", "pe_ratio", "pb_ratio", "dividend_yield", "roe"
   "net_profit_ttm", "revenue_growth_yoy", "profit_growth_yoy"];
 
 async function load(ticker: string) {
-  const t = encodeURIComponent(ticker);
-  const tag = [companyTag(ticker)];
+  // One request for the whole page; the API reads it all over one database connection.
   try {
-    const company = await maybe<CompanyDetail>(`/stocks/${t}`, 3600);
-    if (!company) return null;
-    const [summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs] = await Promise.all([
-      maybe<Summary>(`/stocks/${t}/summary`, 300, tag),
-      maybe<Prices>(`/stocks/${t}/prices`, 300, tag),
-      maybe<Financials>(`/stocks/${t}/financials?period_type=quarterly&limit=8`, 300, tag),
-      maybe<Financials>(`/stocks/${t}/financials?period_type=annual&limit=5`, 300, tag),
-      maybe<News>(`/stocks/${t}/news?limit=20`, 120, tag),
-      maybe<SentimentHistory>(`/stocks/${t}/sentiment?days=30`, 300, tag),
-      maybe<Analysis>(`/stocks/${t}/analysis`, 300, tag),
-      maybe<Reports>(`/stocks/${t}/reports`, 300, tag),
-      maybe<JobList>(`/stocks/${t}/jobs?limit=1`, 0),
-    ]);
-    return { company, summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs };
+    const page = await maybe<PageData>(`/stocks/${encodeURIComponent(ticker)}/page`, 300, [companyTag(ticker)]);
+    if (!page) return null;
+    return {
+      ...page,
+      jobs: { jobs: page.last_job ? [page.last_job] : [] },
+    };
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return "missing" as const;
     throw err;
@@ -77,7 +66,9 @@ export default async function CompanyPage({ params }: Params) {
     );
   }
 
-  const { company, summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs } = data;
+  const { company, summary, prices, quarterly, annual, news, sentiment, analysis, reports, jobs, tracking } = data;
+  // An untracked company opened for the first time has nothing stored yet: fetch it once.
+  const firstLook = !summary?.price && !(news?.articles.length);
   const price = summary?.price ?? null;
   const metrics = new Map(summary?.metrics.map((m) => [m.code, m]));
   const range = price?.high_52w && price.low_52w && price.high_52w > price.low_52w
@@ -105,6 +96,8 @@ export default async function CompanyPage({ params }: Params) {
                 </span>
               ))}
             </div>
+            <TrackButton ticker={ticker} tracked={company.is_tracked} count={tracking.tracked_count}
+                         cap={tracking.cap} />
           </div>
           {(company.sector || company.industry) && (
             <p className="company-sub">{[company.sector, company.industry].filter(Boolean).join(", ")}</p>
@@ -137,8 +130,11 @@ export default async function CompanyPage({ params }: Params) {
             )}
           </div>
         ) : (
-          <p className="empty-state" id="quote-anchor">No prices stored for this company yet. Use “Refresh this company” to
-            fetch them.</p>
+          <p className="empty-state" id="quote-anchor">
+            {firstLook
+              ? "This is the first time anyone has opened this company, so its prices, results and news are being fetched now. It takes about a minute."
+              : "No prices stored for this company yet. Use “Refresh this company” to fetch them."}
+          </p>
         )}
 
         <div className="tone-block">
@@ -146,7 +142,8 @@ export default async function CompanyPage({ params }: Params) {
             <span>
               News tone, last 30 days:{" "}
               <strong>{sentiment?.overall_score != null
-                ? `${toneWord(sentiment.overall_score)} (${signed(sentiment.overall_score)})` : "not enough news yet"}</strong>
+                ? `${toneWord(sentiment.overall_score)} (${signed(sentiment.overall_score)})`
+                : company.is_tracked ? "not enough news yet" : "starts once it’s added to Power BI"}</strong>
             </span>
             {totals && sentiment && sentiment.article_count > 0 && (
               <span className="small muted">
@@ -234,7 +231,7 @@ export default async function CompanyPage({ params }: Params) {
             <p className="source">Worked out from the latest stored price and reported results.</p>
           </section>
 
-          <RefreshPanel ticker={ticker} lastJob={jobs?.jobs[0] ?? null} />
+          <RefreshPanel ticker={ticker} lastJob={jobs?.jobs[0] ?? null} autoStart={firstLook} />
 
           {reports && reports.documents.length > 0 && (
             <section className="section" aria-labelledby="docs-h">

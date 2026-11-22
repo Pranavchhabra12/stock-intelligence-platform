@@ -257,6 +257,7 @@ class AnalysisService:
                 join app.news_articles a using (article_id)
                 join app.companies c using (company_id)
                 where ac.relevance_score >= :minrel
+                  and c.is_tracked   -- AI runs only for companies added to Power BI
                   and coalesce(a.published_at, a.collected_at) >= :since
                   and (cast(:ids as uuid[]) is null or ac.company_id = any(:ids))
                   and not exists (select 1 from app.ai_analyses x
@@ -323,7 +324,7 @@ class AnalysisService:
                 """
                 select d.document_id, d.company_id, d.document_title, d.file_sha256, c.company_name
                 from app.company_documents d join app.companies c using (company_id)
-                where d.extraction_status = 'extracted'
+                where d.extraction_status = 'extracted' and c.is_tracked
                   and (cast(:ids as uuid[]) is null or d.company_id = any(:ids))
                   and not exists (select 1 from app.ai_analyses x
                                   where x.document_id = d.document_id and x.model = :model
@@ -397,6 +398,7 @@ class AnalysisService:
                   select ac.company_id, ac.article_id, ac.relevance_score,
                          (coalesce(a.published_at, a.collected_at) at time zone 'Asia/Kolkata')::date as day
                   from app.article_companies ac join app.news_articles a using (article_id)
+                  join app.companies c on c.company_id = ac.company_id and c.is_tracked
                   where ac.relevance_score >= :minrel
                     and (cast(:ids as uuid[]) is null or ac.company_id = any(:ids))
                 ),

@@ -99,8 +99,9 @@ def upsert_company(conn: Connection, company: dict[str, Any], sources: dict[str,
             text(
                 """
                 insert into app.companies
-                  (company_name, legal_name, cin, sector, industry, website, news_exclude_phrases)
-                values (:name, :legal_name, :cin, :sector, :industry, :website, :exclude)
+                  (company_name, legal_name, cin, sector, industry, website, news_exclude_phrases,
+                   is_tracked, tracked_at, tracked_via)
+                values (:name, :legal_name, :cin, :sector, :industry, :website, :exclude, true, now(), 'seed')
                 returning company_id
                 """
             ),

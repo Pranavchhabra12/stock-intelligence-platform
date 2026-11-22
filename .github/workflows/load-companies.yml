@@ -1,0 +1,27 @@
+name: Load NSE company list
+
+# Makes every NSE-listed company searchable. New companies are added untracked; they are
+# collected daily only after someone adds them to Power BI. Safe to re-run: existing
+# companies are left alone. Runs monthly to pick up new listings.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 22 1 * *"   # 03:30 IST on the 2nd of each month
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      LOG_LEVEL: WARNING
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - run: alembic upgrade head
+      - run: python -m backend.database.load_universe

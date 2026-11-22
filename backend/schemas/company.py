@@ -28,6 +28,7 @@ class CompanySearchResult(BaseModel):
     sector: str | None = None
     industry: str | None = None
     score: float = Field(..., ge=0, le=1, description="Match strength, 1.0 = exact identifier")
+    is_tracked: bool = Field(False, description="Collected daily, analysed by AI and included in Power BI")
     listings: list[Listing]
 
 
@@ -47,6 +48,8 @@ class CompanyDetail(BaseModel):
     description: str | None = None
     website: str | None = None
     is_active: bool
+    is_tracked: bool = False
+    tracked_at: datetime | None = None
     updated_at: datetime
     listings: list[Listing]
     aliases: list[str]
@@ -72,5 +75,16 @@ class CompanyOverview(BaseModel):
 
 class OverviewResponse(BaseModel):
     count: int
+    cap: int = Field(..., description="How many companies Power BI can follow in this demo")
     tone_days: int
     companies: list[CompanyOverview]
+
+
+class TrackResponse(BaseModel):
+    company_id: UUID
+    company_name: str
+    is_tracked: bool
+    created: bool = Field(..., description="False when the company was already in Power BI")
+    tracked_count: int
+    cap: int
+    job_id: UUID | None = Field(None, description="A first full refresh, started when the company was added")

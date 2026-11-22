@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with engine.connect() as conn:
         if args.all:
-            company_ids = list(conn.execute(text("select company_id from app.companies where is_active")).scalars())
+            company_ids = list(conn.execute(text("select company_id from app.companies where is_tracked")).scalars())
         else:
             repo = CompanyRepository(conn)
             company_ids = []

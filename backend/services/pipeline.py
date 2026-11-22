@@ -65,7 +65,7 @@ def default_steps(engine: Engine, settings: Settings, use_gdelt: bool = False) -
         if ids is not None:
             return ids
         with engine.connect() as conn:
-            return list(conn.execute(text("select company_id from app.companies where is_active "
+            return list(conn.execute(text("select company_id from app.companies where is_tracked "
                                           "order by company_name")).scalars())
 
     def prices(ids: list[UUID] | None) -> tuple[StepStatus, dict]:
@@ -103,6 +103,12 @@ def default_steps(engine: Engine, settings: Settings, use_gdelt: bool = False) -
         from backend.providers.ai.gemini import GeminiClient
         from backend.services.ai_analysis import AnalysisService
 
+        if ids is not None:
+            with engine.connect() as conn:
+                tracked = conn.execute(text("select count(*) from app.companies "
+                                            "where company_id = any(:ids) and is_tracked"), {"ids": ids}).scalar_one()
+            if not tracked:
+                return "skipped", {"reason": "AI tone and summaries start once the company is added to Power BI"}
         key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
         ai = GeminiClient(key, settings.gemini_model) if key else None
         result = AnalysisService(engine, ai, max_requests=settings.ai_max_requests_per_run).run(ids)
