@@ -95,9 +95,6 @@ class StatusService:
             "latest_news_at": one("select max(collected_at) from app.news_articles"),
             "news_last_24h": one(
                 "select count(*) from app.news_articles where collected_at > now() - interval '24 hours'"),
-            "latest_filing_at": one(
-                "select max(a.collected_at) from app.news_articles a join app.data_sources s using (source_id) "
-                "where s.source_code like 'bse%'"),
             "latest_ai_at": one("select max(created_at) from app.ai_analyses where status = 'completed'"),
             "ai_rejected_7d": one(
                 "select count(*) from app.ai_analyses "
@@ -143,9 +140,6 @@ class StatusService:
         c.append(Check("News", _fresh(f["latest_news_at"], now, day, timedelta(days=3)),
                        f"Last new article {_age(f['latest_news_at'], now)}; {f['news_last_24h']} in the last 24 hours.",
                        f["latest_news_at"]))
-        filings = _fresh(f["latest_filing_at"], now, timedelta(days=4), timedelta(days=8))
-        c.append(Check("Exchange filings (BSE)", filings,
-                       f"Last filing collected {_age(f['latest_filing_at'], now)}.", f["latest_filing_at"]))
 
         if self.settings.indianapi_key:
             r = f["results_fetch"]

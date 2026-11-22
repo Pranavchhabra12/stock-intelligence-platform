@@ -43,10 +43,6 @@ def create_app() -> FastAPI:
     app.include_router(status.router)
     app.include_router(stocks.router)
     app.include_router(jobs.router)
-
-    from backend.core.bse_probe import maybe_start
-
-    maybe_start()   # one-off BSE reachability check, only with PROBE_BSE=1
     return app
 
 
