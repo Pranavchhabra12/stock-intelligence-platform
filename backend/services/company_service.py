@@ -56,4 +56,7 @@ class CompanyService:
         if company is None:
             raise NotFoundError("Company not found.")
         listings = self.repo.listings_for([company_id]).get(company_id, [])
-        return CompanyDetail(**company, listings=listings, aliases=self.repo.aliases_for(company_id))
+        via = company.pop("tracked_via", None)
+        can_remove = bool(company["is_tracked"]) and via != "seed"
+        return CompanyDetail(**company, can_remove=can_remove, listings=listings,
+                             aliases=self.repo.aliases_for(company_id))

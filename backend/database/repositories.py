@@ -107,7 +107,8 @@ class CompanyRepository:
             text(
                 """
                 select company_id, company_name, legal_name, cin, sector, industry,
-                       description, website, is_active, is_tracked, tracked_at, updated_at
+                       description, website, is_active, is_tracked, tracked_at, tracked_via,
+                       untracked_at, updated_at
                 from app.companies
                 where company_id = :id
                 """

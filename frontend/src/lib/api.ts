@@ -32,6 +32,9 @@ export interface CompanyDetail {
   website: string | null;
   is_tracked: boolean;
   tracked_at: string | null;
+  untracked_at: string | null;
+  /** In Power BI and added by a visitor; the starting companies stay. */
+  can_remove: boolean;
   listings: Listing[];
 }
 
@@ -92,6 +95,7 @@ export interface Prices {
 export interface FinancialPeriod {
   label: string;
   period_type: "quarterly" | "annual";
+  fiscal_quarter: number | null;
   period_end: string;
   metrics: Record<string, number | null>;
 }
@@ -227,6 +231,15 @@ export interface TrackResponse {
   tracked_count: number;
   cap: number;
   job_id: string | null;
+}
+
+export interface UntrackResponse {
+  company_id: string;
+  company_name: string;
+  is_tracked: boolean;
+  removed: boolean;
+  tracked_count: number;
+  cap: number;
 }
 
 export class ApiError extends Error {
