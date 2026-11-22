@@ -1,4 +1,4 @@
-name: Collect market data and news
+name: Collect market data, news and AI analysis
 
 # The scheduled pipeline for the hosted demo (APScheduler does the same job locally).
 # Needs a repository secret DATABASE_URL: the Supabase *Session pooler* connection string.
@@ -23,6 +23,7 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       LOG_LEVEL: WARNING
     steps:
       - name: Check the database secret is set
@@ -65,6 +66,19 @@ jobs:
             python -m backend.collect_news --all
           elif [[ "$TICKERS" =~ ^[A-Za-z0-9\&.\ -]+$ ]]; then
             python -m backend.collect_news $TICKERS
+          else
+            exit 1
+          fi
+      - name: AI sentiment, report summaries and daily sentiment history
+        # Skips the AI calls (and still updates history) if GEMINI_API_KEY isn't set.
+        if: success() || failure()
+        env:
+          TICKERS: ${{ github.event.inputs.tickers }}
+        run: |
+          if [ -z "$TICKERS" ]; then
+            python -m backend.analyze --all
+          elif [[ "$TICKERS" =~ ^[A-Za-z0-9\&.\ -]+$ ]]; then
+            python -m backend.analyze $TICKERS
           else
             exit 1
           fi

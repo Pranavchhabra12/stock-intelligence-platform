@@ -14,6 +14,8 @@ APP_TABLES = {
     "daily_prices", "corporate_actions", "metric_definitions", "financial_periods", "financial_metrics",
     # Phase 3
     "news_articles", "article_companies", "company_documents", "document_chunks",
+    # Phase 4
+    "ai_analyses", "sentiment_history",
 }
 
 
