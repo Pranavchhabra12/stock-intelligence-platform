@@ -2,6 +2,8 @@
 
 An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a company, collect its prices, financials, news and filings, run AI summaries and sentiment analysis, and explore it all in Power BI dashboards.
 
+**Live:** [stock-intelligence-three.vercel.app](https://stock-intelligence-three.vercel.app) · API docs: [stock-intelligence-api-qjn3.onrender.com/docs](https://stock-intelligence-api-qjn3.onrender.com/docs) (the free API sleeps when idle, so the first visit can take about a minute)
+
 > **Educational project, not investment advice.** Market data is delayed and comes from third-party sources, credited in the app. Sentiment scores describe news tone, not future price moves.
 
 ## Status
@@ -15,7 +17,7 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 | 5 | Scheduled and on-demand pipelines | ✅ Done |
 | 6 | Power BI dashboards | Needs a Windows laptop |
 | 7 | Next.js website | ✅ Done |
-| 8 | Testing and deployment | Next |
+| 8 | Testing and deployment | ✅ Live |
 
 ## Stack
 
