@@ -58,11 +58,19 @@ Supabase PostgreSQL. Application tables live in the `app` schema; analytics view
 
 **Deduplication:** URLs are canonicalised (tracking parameters, fragments and trailing slashes removed) before hashing. If the same headline arrives under another URL within two days, the existing article gains the new company links instead of a second copy being stored.
 
+## Phase 4 tables
+
+| Table | Purpose | Key constraints |
+|---|---|---|
+| `ai_analyses` | One AI result: an article's sentiment for one company, or a report summary | exactly one of `article_id` / `document_id`, matching `analysis_type`; unique per subject × company × model × prompt version; completed rows must have a result; score −1 to 1 |
+| `sentiment_history` | One row per company per day per methodology | PK (company_id, as_of_date, methodology_version); counts add up to `article_count`; written once, never updated |
+
+Report summaries store `key_points` and `risks` as JSON lists of `{"point", "pages"}`. A summary is redone only when the report file changes (its hash is part of `input_hash`).
+
 ## Planned tables
 
 | Phase | Tables |
 |---|---|
-| 4 | `ai_analyses` (one per source × company × prompt version × model), `sentiment_history` (one per company × date × methodology version) |
 | 5 | `collection_jobs` (doubles as the job queue) |
 | 6 | `powerbi_refresh_queue` (optional), `analytics` views |
 

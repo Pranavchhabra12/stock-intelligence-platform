@@ -30,6 +30,19 @@ company_documents ─► download PDF ─► SHA-256 check ─► text by page �
 - Search results only count if the headline names the company; quote pages and social posts are skipped.
 - A document is re-extracted only when its file hash changes. Scanned PDFs with no text layer are marked `needs_ocr` rather than guessed at.
 
+## AI analysis (Phase 4)
+
+```
+recent articles (relevance ≥ 0.6) ─► batches of 20 ─► Gemini (JSON schema) ─► checks ─► ai_analyses
+extracted reports ─► best ~24,000 words ─► Gemini ─► page + figure checks ─► ai_analyses
+ai_analyses ─► finished, fully rated days ─► sentiment_history (written once)
+```
+
+- Headlines and report text are sent as marked-off data, and the prompt tells the model to ignore instructions inside them.
+- A sentiment answer is rejected if its label and score disagree or are out of range.
+- Report text is sent as numbered parts; the model cites parts, which are stored as the PDF pages they cover (printed page numbers in reports often differ). A point is dropped if it cites a part the model wasn't given, or uses a figure that isn't in the text.
+- Each run has a request budget (`AI_MAX_REQUESTS_PER_RUN`); whatever is left is picked up next run. A bad key stops the run after one request.
+
 ## Pipelines (Phase 5)
 
 One pipeline, two triggers:
@@ -43,7 +56,8 @@ One pipeline, two triggers:
 |---|---|
 | Frontend | Vercel |
 | Backend API | Render (free web service) |
-| Daily pipeline | GitHub Actions scheduled workflow (prices, financials, news) |
+| Daily pipeline | GitHub Actions scheduled workflow (prices, financials, news, AI analysis) |
+| AI model | Google Gemini API, free tier |
 | Hourly feeds | GitHub Actions, weekdays during market hours |
 | Database and file storage | Supabase Free |
 

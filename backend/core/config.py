@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     eodhd_api_key: SecretStr | None = None
     price_backfill_years: int = Field(default=5, ge=1, le=20)
 
+    # Phase 4: AI analysis. Without a key, analysis is skipped and everything else still works.
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.5-flash-lite"
+    ai_max_requests_per_run: int = Field(default=40, ge=1, le=500)
+
     @property
     def market_data_provider_codes(self) -> list[str]:
         return [c.strip() for c in self.market_data_providers.split(",") if c.strip()]

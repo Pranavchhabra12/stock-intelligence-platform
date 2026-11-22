@@ -118,10 +118,24 @@ Articles come newest first. Each has its headline, link, publisher, published ti
 
 Documents newest first, with `extraction_status` (`pending`, `extracted`, `needs_ocr` for scanned PDFs, `not_pdf`, `failed`), page count and how many text chunks are ready for analysis.
 
+### `GET /stocks/{ticker}/sentiment`
+
+| Parameter | Notes |
+|---|---|
+| `days` | 7–90, default 30 |
+
+`history` lists each finished day (India time) that had rated news, oldest first: the relevance-weighted score from −1 to 1 and how many articles were positive, neutral and negative. `overall_score` is the article-weighted mean over the period; `overall_label` is positive above 0.15, negative below −0.15, otherwise neutral. `methodology_version` says how the numbers were made.
+
+News items from `/news` also carry `sentiment` and `sentiment_score` once they've been rated.
+
+### `GET /stocks/{ticker}/analysis`
+
+AI summaries of the company's reports, newest report first: `summary`, `key_points` and `risks`, where every point lists the report pages it comes from. Each summary records the `model` and `prompt_version` that produced it.
+
 ## Rate limiting
 
 `API_RATE_LIMIT_PER_MINUTE` requests per client IP per minute (default 60; `0` disables). In-memory, per process: fine for one small instance.
 
 ## Coming in later phases
 
-`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, `/sentiment`, `/analysis`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
+`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
