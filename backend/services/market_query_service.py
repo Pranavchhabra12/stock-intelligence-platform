@@ -32,6 +32,10 @@ class InvalidRangeError(AppError):
     code = "validation_error"
 
 
+# A quarter is shown only when it reports at least one of these.
+HEADLINE_METRICS = ("total_revenue", "net_profit")
+
+
 class MarketQueryService:
     def __init__(self, conn: Connection) -> None:
         self.conn = conn
@@ -95,6 +99,10 @@ class MarketQueryService:
 
         periods = []
         for r in rows:
+            # Yahoo pads its oldest columns with a stray figure or two (an EPS, a share count) and
+            # no revenue or profit. A column like that is mostly dashes and says nothing; skip it.
+            if r["period_type"] == "quarterly" and not any(k in r["metrics"] for k in HEADLINE_METRICS):
+                continue
             label = (f"Q{r['fiscal_quarter']} FY{r['fiscal_year']}" if r["period_type"] == "quarterly"
                      else f"FY{r['fiscal_year']}")
             # Every reported metric appears; missing ones are null, never guessed.

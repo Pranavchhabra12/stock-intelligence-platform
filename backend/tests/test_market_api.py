@@ -27,6 +27,8 @@ def collected(engine: Engine) -> Iterator[None]:
         FinancialPeriodData("quarterly", date(2026, 9, 30), {"total_revenue": Decimal("2500000000000"),
                                                              "net_profit": Decimal("190000000000")}),
         FinancialPeriodData("quarterly", date(2026, 6, 30), {"total_revenue": Decimal("2400000000000")}),
+        # Yahoo's padding: an old column with a stray EPS and nothing else.
+        FinancialPeriodData("quarterly", date(2024, 6, 30), {"eps": Decimal("11.2")}),
         FinancialPeriodData("annual", date(2026, 3, 31), {"eps": Decimal("51.5")}),
     ])
     MarketDataCollector(engine, FallbackMarketDataProvider([provider]), backfill_years=1, today=TODAY) \
@@ -71,7 +73,7 @@ def test_invalid_price_ranges(client: TestClient, params: dict) -> None:
 
 def test_financials_quarterly(client: TestClient, collected: None) -> None:
     body = client.get("/stocks/RELIANCE/financials").json()
-    assert [p["label"] for p in body["periods"]] == ["Q2 FY2027", "Q1 FY2027"]
+    assert [p["label"] for p in body["periods"]] == ["Q2 FY2027", "Q1 FY2027"]   # the padding is skipped
     latest = body["periods"][0]["metrics"]
     assert latest["total_revenue"] == 2.5e12
     assert latest["eps"] is None                        # not reported: null, never guessed
