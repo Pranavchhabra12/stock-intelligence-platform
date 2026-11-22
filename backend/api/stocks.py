@@ -5,13 +5,17 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, Response
 from sqlalchemy.engine import Connection
 
+from backend.api.jobs import JobServiceDep
+from backend.core.errors import NotFoundError
 from backend.database.connection import get_connection
+from backend.database.repositories import CompanyRepository
 from backend.schemas.company import CompanyDetail, Exchange, SearchResponse
 from backend.schemas.content import AnalysisResponse, NewsResponse, ReportsResponse, SentimentResponse
 from backend.schemas.errors import ErrorResponse
+from backend.schemas.jobs import Job, JobListResponse, RefreshResponse
 from backend.schemas.market import FinancialsResponse, PriceHistoryResponse
 from backend.services.company_service import CompanyService
 from backend.services.content_query_service import ContentQueryService
@@ -29,6 +33,14 @@ _ERRORS = {
     422: {"model": ErrorResponse, "description": "Invalid input"},
     429: {"model": ErrorResponse, "description": "Rate limited"},
 }
+
+
+def _company_id(conn: Connection, ticker: str):  # noqa: ANN202
+    repo = CompanyRepository(conn)
+    company_id = repo.find_company_id_by_ticker(ticker.strip(), None)
+    if company_id is None:
+        raise NotFoundError(f"No company found for ticker '{ticker}'.")
+    return company_id, repo.get_company(company_id)["company_name"]
 
 
 @router.get("/search", response_model=SearchResponse, responses=_ERRORS)
@@ -127,3 +139,35 @@ def get_sentiment(
 def get_analysis(conn: DbConnection, ticker: Ticker) -> AnalysisResponse:
     """AI summaries of the company's reports: key points and risks, each citing report pages."""
     return ContentQueryService(conn).analysis(ticker)
+
+
+@router.post("/{ticker}/refresh", response_model=RefreshResponse, status_code=202,
+             responses={**_ERRORS, 200: {"model": RefreshResponse,
+                                         "description": "A refresh finished moments ago; it is returned as-is"}})
+def refresh(
+    conn: DbConnection, ticker: Ticker, service: JobServiceDep, background: BackgroundTasks, response: Response,
+) -> RefreshResponse:
+    """Collect the latest prices, news and filings for one company, then run the AI analysis.
+
+    Returns at once with a job to poll (`poll_url`). Only one refresh per company runs at a
+    time, and one that finished within the cooldown (15 minutes by default) is returned
+    instead of starting another.
+    """
+    company_id, _ = _company_id(conn, ticker)
+    job, created = service.request_refresh(company_id)
+    if created:
+        background.add_task(service.run, job["job_id"])
+    if job["status"] not in ("pending", "running"):
+        response.status_code = 200
+    return RefreshResponse(**job, created=created, poll_url=f"/jobs/{job['job_id']}")
+
+
+@router.get("/{ticker}/jobs", response_model=JobListResponse, responses=_ERRORS)
+def recent_jobs(
+    conn: DbConnection, ticker: Ticker, service: JobServiceDep,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> JobListResponse:
+    """The company's latest refreshes, newest first (shows when its data was last updated)."""
+    company_id, name = _company_id(conn, ticker)
+    jobs = [Job(**j) for j in service.recent(company_id, limit)]
+    return JobListResponse(company_id=company_id, company_name=name, count=len(jobs), jobs=jobs)

@@ -132,10 +132,28 @@ News items from `/news` also carry `sentiment` and `sentiment_score` once they'v
 
 AI summaries of the company's reports, newest report first: `summary`, `key_points` and `risks`, where every point lists the report pages it comes from. Each summary records the `model` and `prompt_version` that produced it.
 
+### `POST /stocks/{ticker}/refresh`
+
+Starts a refresh of one company: latest prices, news, filings and documents, then AI analysis. Returns at once.
+
+- **202**: a new refresh was started (`created: true`), or one is already pending or running (`created: false`).
+- **200**: a refresh finished within the cooldown (15 minutes by default); it is returned instead of starting another.
+- **429** with code `busy`: too many refreshes are running; try again in a few minutes.
+
+The response includes `job_id` and `poll_url`.
+
+### `GET /jobs/{job_id}`
+
+`status` is `pending`, `running`, `completed`, `completed_with_errors` or `failed`. `steps` lists each step in order with its own status (`running`, `completed`, `completed_with_errors`, `failed`, `skipped`) and counts such as prices or articles stored. Poll every few seconds until the status is no longer `pending` or `running`.
+
+### `GET /stocks/{ticker}/jobs`
+
+The company's latest refreshes, newest first (`limit` 1–20, default 5). The newest finished one says when its data was last updated.
+
 ## Rate limiting
 
 `API_RATE_LIMIT_PER_MINUTE` requests per client IP per minute (default 60; `0` disables). In-memory, per process: fine for one small instance.
 
 ## Coming in later phases
 
-`POST /stocks/{ticker}/refresh`, `GET /jobs/{job_id}`, and `POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).
+`POST /admin/powerbi/refresh` (protected by `ADMIN_API_TOKEN`).

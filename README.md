@@ -12,8 +12,8 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 | 2 | Market data (prices, basic financials) with provider fallback | ✅ Done |
 | 3 | News, exchange filings and company reports | ✅ Done |
 | 4 | AI summaries and sentiment (Gemini) | ✅ Done |
-| 5 | Scheduled and on-demand pipelines | Next |
-| 6 | Power BI dashboards | Planned |
+| 5 | Scheduled and on-demand pipelines | ✅ Done |
+| 6 | Power BI dashboards | Next |
 | 7 | Next.js frontend | Planned |
 | 8 | Testing and deployment | Planned |
 
@@ -37,6 +37,7 @@ An AI-assisted research platform for Indian listed companies (NSE/BSE). Search a
 - **Reports as searchable text.** Annual reports and results PDFs are downloaded once, checked by hash, and split into page-referenced chunks ready for AI analysis in Phase 4.
 - **AI that can be checked.** Gemini rates each headline's tone for the company it's about and summarises annual reports. Answers must match a JSON schema; every summary point cites report pages, and any figure that isn't in the report text is dropped. Each result records its model and prompt version.
 - **Sentiment history that doesn't drift.** Each finished day is scored once, weighted by how relevant each article is, and never rewritten; a new method gets a new version.
+- **One pipeline, three triggers.** A refresh button (`POST /stocks/{ticker}/refresh`), the daily run and the hourly feeds run all go through the same steps and are recorded as jobs. Only one refresh per company can run at a time, a recent one is reused, and a crashed step never stops the others.
 - **Idempotent by design.** Natural unique keys plus upserts mean a pipeline can be re-run safely.
 - **Private by default.** Application tables live in an `app` schema that Supabase's public API does not expose, with row level security enabled on every table.
 - **Provenance everywhere.** Every fact records its `data_sources` row, including licence and attribution details.
@@ -74,6 +75,9 @@ documentation/      architecture, database, API, decisions, checklist
 | GET | `/stocks/{ticker}/reports?document_type=` | Annual reports, results and filings, with text-extraction status |
 | GET | `/stocks/{ticker}/sentiment?days=` | Daily AI-rated news sentiment and the period's overall tone |
 | GET | `/stocks/{ticker}/analysis` | AI summaries of reports: key points and risks with page references |
+| POST | `/stocks/{ticker}/refresh` | Start a refresh of one company; returns a job to poll |
+| GET | `/jobs/{job_id}` | A job's status, step by step |
+| GET | `/stocks/{ticker}/jobs` | The company's latest refreshes (when its data was last updated) |
 
 Interactive docs at `/docs` when the server is running. Details: [`documentation/api.md`](documentation/api.md).
 
@@ -89,8 +93,9 @@ cp .env.example .env                          # defaults point at the Docker dat
 
 alembic upgrade head                          # create tables
 python -m backend.database.seed               # load the 5 test companies
-python -m backend.collect --all               # fetch prices and financials
+python -m backend.scheduler.run_once          # one full run: prices, news, filings, AI
 uvicorn backend.main:app --reload             # http://localhost:8000/docs
+python -m backend.scheduler.local             # optional: keep the daily and hourly schedules running
 
 pytest                                        # full test suite
 ```

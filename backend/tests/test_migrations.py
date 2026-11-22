@@ -16,6 +16,8 @@ APP_TABLES = {
     "news_articles", "article_companies", "company_documents", "document_chunks",
     # Phase 4
     "ai_analyses", "sentiment_history",
+    # Phase 5
+    "collection_jobs",
 }
 
 

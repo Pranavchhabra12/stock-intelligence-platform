@@ -117,17 +117,19 @@ class DocumentService:
 
     # ---------- processing ----------
 
-    def ingest_pending(self, limit: int = 20, include_failed: bool = False) -> IngestResult:
+    def ingest_pending(self, limit: int = 20, include_failed: bool = False,
+                       company_ids: list[UUID] | None = None) -> IngestResult:
         statuses = ["pending", "failed"] if include_failed else ["pending"]
         with self.engine.connect() as conn:
             rows = conn.execute(text(
                 """
                 select document_id, document_url, file_sha256 from app.company_documents
                 where extraction_status = any(:st)
+                  and (cast(:ids as uuid[]) is null or company_id = any(:ids))
                 order by publication_date desc nulls last, collected_at
                 limit :limit
                 """
-            ), {"st": statuses, "limit": limit}).mappings().all()
+            ), {"st": statuses, "limit": limit, "ids": company_ids}).mappings().all()
         result = IngestResult()
         for row in rows:
             self.ingest(row["document_id"], row["document_url"], row["file_sha256"], result)
