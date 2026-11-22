@@ -46,6 +46,18 @@
 
 **Phase 3 acceptance criteria (blueprint):** news collected for a searched company ✅ · articles linked to the right company ✅ · duplicates prevented ✅ · sources and timestamps retained ✅ · reports stored with extracted text ✅
 
+## Phase 4: AI analysis ✅
+
+- [x] Migration 0009: `ai_analyses`, `sentiment_history`
+- [x] Gemini client: REST, JSON schema output, request spacing, retries, bad-key detection
+- [x] Article sentiment in batches, validated, never repeated for the same model and prompt
+- [x] Report summaries with page references; unverifiable figures and pages dropped
+- [x] Daily sentiment history: relevance-weighted, finished days only, written once
+- [x] `GET /stocks/{ticker}/sentiment`, `GET /stocks/{ticker}/analysis`, sentiment on `/news`
+- [x] AI step in the daily workflow; live Gemini check
+
+**Phase 4 acceptance criteria (blueprint):** AI summaries generated from stored content ✅ · sentiment per article and per company ✅ · model and prompt version recorded ✅ · AI never produces financial figures ✅ · history kept, not overwritten ✅
+
 ## Later phases
 
-See the project plan: AI analysis (4), automation (5), Power BI (6), frontend (7), testing and deployment (8).
+See the project plan: automation (5), Power BI (6), frontend (7), testing and deployment (8).

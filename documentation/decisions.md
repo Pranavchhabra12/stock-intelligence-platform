@@ -32,3 +32,8 @@ Short records of architectural choices and why they were made. The finalised sta
 | 26 | BSE filings matched by scrip code | The code in each BSE item identifies the company exactly, so no name matching is needed |
 | 27 | Reports chunked by page, about 1,500 words each | Keeps chunks within AI context limits and lets answers cite page numbers |
 | 28 | Scanned PDFs marked `needs_ocr`, not OCR'd | OCR is slow and error-prone on free hosting; most listed companies publish text PDFs |
+| 29 | Gemini (free tier) through its REST API, no SDK | Free and capable enough for short ratings and summaries; plain HTTP is explicit and easy to test. The model name is a setting |
+| 30 | Headlines rated in batches of 20 | Keeps a day's news to a handful of requests, well inside free-tier limits |
+| 31 | Summary points must cite real pages and real figures | The model only sees selected pages; anything citing other pages, or a number not in that text, is dropped rather than trusted |
+| 32 | Sentiment history only for finished, fully rated days | A run that runs out of budget can't leave a partial day that is then frozen |
+| 33 | Free-tier data terms accepted for this project | Only public news and published reports are sent, never user data |
